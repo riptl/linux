@@ -228,6 +228,7 @@ struct __attribute__ ((__packed__)) vmcb_control_area {
 
 #define SVM_INTERRUPT_SHADOW_MASK	BIT_ULL(0)
 #define SVM_GUEST_INTERRUPT_MASK	BIT_ULL(1)
+#define PMC_VIRT_ENABLE_MASK	BIT_ULL(3)
 
 #define SVM_IOIO_STR_SHIFT 2
 #define SVM_IOIO_REP_SHIFT 3
@@ -337,7 +338,20 @@ struct vmcb_save_area {
 	u8 cpl;
 	u8 reserved_0xcc[4];
 	u64 efer;
-	u8 reserved_0xd8[112];
+	u8 reserved_0xd8[8];
+	u64 perf_ctl0;
+	u64 perf_ctr0;
+	u64 perf_ctl1;
+	u64 perf_ctr1;
+	u64 perf_ctl2;
+	u64 perf_ctr2;
+	u64 perf_ctl3;
+	u64 perf_ctr3;
+	u64 perf_ctl4;
+	u64 perf_ctr4;
+	u64 perf_ctl5;
+	u64 perf_ctr5;
+	u8 reserved_0x140[8];
 	u64 cr4;
 	u64 cr3;
 	u64 cr0;
@@ -345,7 +359,10 @@ struct vmcb_save_area {
 	u64 dr6;
 	u64 rflags;
 	u64 rip;
-	u8 reserved_0x180[88];
+	u8 reserved_0x180[64];
+	u64 instr_retired_ctr;
+	u64 perf_ctr_global_sts;
+	u8 reserved_0x1d0[8];
 	u64 rsp;
 	u64 s_cet;
 	u64 ssp;
