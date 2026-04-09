@@ -1449,6 +1449,10 @@ static int __init amd_core_pmu_init(void)
 		static_call_update(amd_pmu_test_overflow, amd_pmu_test_overflow_status);
 	}
 
+	if (boot_cpu_has(X86_FEATURE_PMC_VIRT)) {
+		x86_get_pmu(smp_processor_id())->capabilities |= PERF_PMU_CAP_HW_VPMU;
+	}
+
 	/*
 	 * AMD Core perfctr has separate MSRs for the NB events, see
 	 * the amd/uncore.c driver.

@@ -306,6 +306,7 @@ struct x86_pmu_capability {
 	int		events_mask_len;
 	unsigned int	pebs_ept	:1;
 	unsigned int	mediated	:1;
+	unsigned int	hw_virt		:1;
 };
 
 /*
