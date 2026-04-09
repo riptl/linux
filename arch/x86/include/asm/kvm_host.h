@@ -600,6 +600,8 @@ struct kvm_pmu {
 	u64 pebs_data_cfg;
 	u64 pebs_data_cfg_rsvd;
 
+	bool hw_pmc_virt;
+
 	/*
 	 * If a guest counter is cross-mapped to host counter with different
 	 * index, its PEBS capability will be temporarily disabled.

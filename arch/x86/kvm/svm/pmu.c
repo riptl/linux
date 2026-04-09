@@ -234,10 +234,49 @@ static bool amd_pmu_is_mediated_pmu_supported(struct x86_pmu_capability *host_pm
 	return host_pmu->version >= 2;
 }
 
+static void amd_hw_pmu_load(struct kvm_vcpu *vcpu)
+{
+	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
+	struct vcpu_svm *svm = to_svm(vcpu);
+
+	struct vmcb_save_area *save = &svm->vmcb->save;
+	u64 *perf = &save->perf_ctl0;
+	int i;
+	for (i = 0; i < pmu->nr_arch_gp_counters && i < 6; i++) {
+		perf[i * 2] = pmu->gp_counters[i].eventsel;
+		perf[i * 2 + 1] = pmu->gp_counters[i].counter;
+	}
+	save->perf_ctr_global_sts = pmu->global_status;
+}
+
+static void amd_hw_pmu_put(struct kvm_vcpu *vcpu)
+{
+	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
+	struct vcpu_svm *svm = to_svm(vcpu);
+
+	struct vmcb_save_area *save = &svm->vmcb->save;
+	u64 *perf = &save->perf_ctl0;
+	int i;
+
+	for (i = 0; i < pmu->nr_arch_gp_counters && i < 6; i++) {
+		pmu->gp_counters[i].eventsel = perf[i * 2];
+		pmu->gp_counters[i].eventsel_hw =
+			(perf[i * 2] & ~AMD64_EVENTSEL_HOSTONLY) |
+			AMD64_EVENTSEL_GUESTONLY;
+		pmu->gp_counters[i].counter = perf[i * 2 + 1];
+	}
+	pmu->global_status = save->perf_ctr_global_sts;
+}
+
 static void amd_mediated_pmu_load(struct kvm_vcpu *vcpu)
 {
 	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
 	u64 global_status;
+
+	if (pmu->hw_pmc_virt) {
+		amd_hw_pmu_load(vcpu);
+		return;
+	}
 
 	rdmsrq(MSR_AMD64_PERF_CNTR_GLOBAL_STATUS, global_status);
 	/* Clear host global_status MSR if non-zero. */
@@ -251,6 +290,11 @@ static void amd_mediated_pmu_load(struct kvm_vcpu *vcpu)
 static void amd_mediated_pmu_put(struct kvm_vcpu *vcpu)
 {
 	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
+
+	if (pmu->hw_pmc_virt) {
+		amd_hw_pmu_put(vcpu);
+		return;
+	}
 
 	wrmsrq(MSR_AMD64_PERF_CNTR_GLOBAL_CTL, 0);
 	rdmsrq(MSR_AMD64_PERF_CNTR_GLOBAL_STATUS, pmu->global_status);
