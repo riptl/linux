@@ -50,6 +50,7 @@ extern int vgif;
 extern bool intercept_smi;
 extern bool vnmi;
 extern int lbrv;
+extern bool pmc_virt;
 
 extern int tsc_aux_uret_slot __ro_after_init;
 

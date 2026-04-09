@@ -1396,6 +1396,12 @@ void kvm_mediated_pmu_put(struct kvm_vcpu *vcpu)
 
 	lockdep_assert_irqs_disabled();
 
+	if (vcpu_to_pmu(vcpu)->hw_pmc_virt) {
+		kvm_pmu_call(mediated_put)(vcpu);
+		perf_put_guest_context();
+		return;
+	}
+
 	/*
 	 * Defer handling of PERF_GLOBAL_CTRL to vendor code.  On Intel, it's
 	 * atomically cleared on VM-Exit, i.e. doesn't need to be clear here.

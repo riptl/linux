@@ -177,6 +177,9 @@ module_param(enable_mediated_pmu, bool, 0444);
 
 static bool __ro_after_init svm_gp_erratum_intercept = true;
 
+bool __ro_after_init pmc_virt = true;
+module_param(pmc_virt, bool, 0444);
+
 static u8 rsm_ins_bytes[] = "\x0f\xaa";
 
 static unsigned long __read_mostly iopm_base;
@@ -1238,6 +1241,9 @@ static void init_vmcb(struct kvm_vcpu *vcpu, bool init_event)
 
 	if (vls)
 		svm->vmcb->control.misc_ctl2 |= SVM_MISC2_ENABLE_V_VMLOAD_VMSAVE;
+
+	if (vcpu_to_pmu(vcpu)->hw_pmc_virt)
+		svm->vmcb->control.misc_ctl2 |= PMC_VIRT_ENABLE_MASK;
 
 	if (vcpu->kvm->arch.bus_lock_detection_enabled)
 		svm_set_intercept(svm, INTERCEPT_BUSLOCK);
@@ -5485,6 +5491,9 @@ static __init void svm_set_cpu_caps(void)
 		if (vnmi)
 			kvm_cpu_cap_set(X86_FEATURE_VNMI);
 
+		if (pmc_virt)
+			kvm_cpu_cap_set(X86_FEATURE_PMC_VIRT);
+
 		/* Nested VM can receive #VMEXIT instead of triggering #GP */
 		kvm_cpu_cap_set(X86_FEATURE_SVME_ADDR_CHK);
 	}
@@ -5667,6 +5676,10 @@ static __init int svm_hardware_setup(void)
 	vnmi = vgif && vnmi && boot_cpu_has(X86_FEATURE_VNMI);
 	if (vnmi)
 		pr_info("Virtual NMI enabled\n");
+
+	pmc_virt = pmc_virt && vnmi && boot_cpu_has(X86_FEATURE_PMC_VIRT);
+	if (pmc_virt)
+		pr_info("PMC Virtualization supported\n");
 
 	if (!vnmi) {
 		svm_x86_ops.is_vnmi_pending = NULL;

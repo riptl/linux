@@ -212,6 +212,7 @@ static void amd_pmu_refresh(struct kvm_vcpu *vcpu)
 	/* not applicable to AMD; but clean them to prevent any fall out */
 	pmu->counter_bitmask[KVM_PMC_FIXED] = 0;
 	pmu->nr_arch_fixed_counters = 0;
+	pmu->hw_pmc_virt = pmc_virt && kvm_pmu_cap.hw_virt;
 }
 
 static void amd_pmu_init(struct kvm_vcpu *vcpu)
