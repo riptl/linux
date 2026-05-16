@@ -39,5 +39,6 @@
 /* ARCH_SHSTK_ features bits */
 #define ARCH_SHSTK_SHSTK		(1ULL <<  0)
 #define ARCH_SHSTK_WRSS			(1ULL <<  1)
+#define ARCH_SHSTK_IBT			(1ULL <<  2)
 
 #endif /* _ASM_X86_PRCTL_H */

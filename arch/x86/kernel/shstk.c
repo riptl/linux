@@ -520,6 +520,8 @@ unlock:
 
 static int shstk_disable(void)
 {
+        u64 msrval;
+
 	if (!cpu_feature_enabled(X86_FEATURE_USER_SHSTK))
 		return -EOPNOTSUPP;
 
@@ -528,8 +530,10 @@ static int shstk_disable(void)
 		return 0;
 
 	fpregs_lock_and_load();
+	rdmsrq(MSR_IA32_U_CET, msrval);
 	/* Disable WRSS too when disabling shadow stack */
-	wrmsrq(MSR_IA32_U_CET, 0);
+        msrval &= ~(CET_SHSTK_EN | CET_WRSS_EN);
+	wrmsrq(MSR_IA32_U_CET, msrval);
 	wrmsrq(MSR_IA32_PL3_SSP, 0);
 	fpregs_unlock();
 
@@ -569,6 +573,33 @@ SYSCALL_DEFINE3(map_shadow_stack, unsigned long, addr, unsigned long, size, unsi
 	return alloc_shstk(addr, aligned_size, size, set_tok);
 }
 
+static int ibt_control(bool enable)
+{
+	u64 msrval;
+
+	if (!cpu_feature_enabled(X86_FEATURE_USER_IBT))
+		return -EOPNOTSUPP;
+
+	/* Already enabled/disabled? */
+	if (features_enabled(ARCH_SHSTK_IBT) == enable)
+		return 0;
+
+	fpregs_lock_and_load();
+	rdmsrq(MSR_IA32_U_CET, msrval);
+
+	if (enable) {
+		features_set(ARCH_SHSTK_IBT);
+		msrval |= CET_IBT_EN;
+	} else {
+		features_clr(ARCH_SHSTK_IBT);
+		msrval &= ~CET_IBT_EN;
+	}
+
+	wrmsrq(MSR_IA32_U_CET, msrval);
+
+	return 0;
+}
+
 long shstk_prctl(struct task_struct *task, int option, unsigned long arg2)
 {
 	unsigned long features = arg2;
@@ -604,6 +635,8 @@ long shstk_prctl(struct task_struct *task, int option, unsigned long arg2)
 			return wrss_control(false);
 		if (features & ARCH_SHSTK_SHSTK)
 			return shstk_disable();
+                if (features & ARCH_SHSTK_IBT)
+                        return ibt_control(false);
 		return -EINVAL;
 	}
 
@@ -612,6 +645,8 @@ long shstk_prctl(struct task_struct *task, int option, unsigned long arg2)
 		return shstk_setup();
 	if (features & ARCH_SHSTK_WRSS)
 		return wrss_control(true);
+        if (features & ARCH_SHSTK_IBT)
+                return ibt_control(true);
 	return -EINVAL;
 }
 

@@ -634,7 +634,7 @@ __noendbr void ibt_restore(u64 save)
 
 static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 {
-	bool user_shstk, kernel_ibt;
+	bool user_shstk, kernel_ibt, user_ibt;
 
 	if (!IS_ENABLED(CONFIG_X86_CET))
 		return;
@@ -642,12 +642,17 @@ static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 	kernel_ibt = HAS_KERNEL_IBT && cpu_feature_enabled(X86_FEATURE_IBT);
 	user_shstk = cpu_feature_enabled(X86_FEATURE_SHSTK) &&
 		     IS_ENABLED(CONFIG_X86_USER_SHADOW_STACK);
+	user_ibt = cpu_feature_enabled(X86_FEATURE_IBT) &&
+		   IS_ENABLED(CONFIG_X86_USER_IBT);
 
-	if (!kernel_ibt && !user_shstk)
+	if (!kernel_ibt && !user_shstk && !user_ibt)
 		return;
 
 	if (user_shstk)
 		set_cpu_cap(c, X86_FEATURE_USER_SHSTK);
+
+	if (user_ibt)
+		set_cpu_cap(c, X86_FEATURE_USER_IBT);
 
 	if (kernel_ibt)
 		wrmsrq(MSR_IA32_S_CET, CET_ENDBR_EN);
