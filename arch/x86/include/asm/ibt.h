@@ -116,12 +116,18 @@ static inline void ibt_restore(u64 save) { }
 
 #ifndef __ASSEMBLER__
 
+#include <linux/prctl.h>
+
+#define PR_CFI_SUPPORTED_STATUS_MASK (PR_CFI_ENABLE | PR_CFI_DISABLE | PR_CFI_LOCK)
+
 struct pt_regs;
 
 #ifdef CONFIG_X86_USER_IBT
 void setup_signal_ibt(struct pt_regs *regs);
+void reset_thread_ibt(void);
 #else
 static inline void setup_signal_ibt(struct pt_regs *regs) {}
+static inline void reset_thread_ibt(void) {}
 #endif /* CONFIG_X86_USER_IBT */
 
 #endif /* __ASSEMBLER__ */
