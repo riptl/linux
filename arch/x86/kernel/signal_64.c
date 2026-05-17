@@ -15,6 +15,7 @@
 #include <asm/ucontext.h>
 #include <asm/fpu/signal.h>
 #include <asm/sighandling.h>
+#include <asm/ibt.h>
 
 #include <asm/syscall.h>
 #include <asm/sigframe.h>
@@ -198,6 +199,8 @@ int x64_setup_rt_frame(struct ksignal *ksig, struct pt_regs *regs)
 	if (setup_signal_shadow_stack(ksig))
 		return -EFAULT;
 
+	setup_signal_ibt(regs);
+
 	/* Set up registers for signal handler */
 	regs->di = ksig->sig;
 	/* In case the signal handler was declared without prototypes */
@@ -319,6 +322,8 @@ int x32_setup_rt_frame(struct ksignal *ksig, struct pt_regs *regs)
 
 	if (setup_signal_shadow_stack(ksig))
 		return -EFAULT;
+
+	setup_signal_ibt(regs);
 
 	if (!user_access_begin(frame, sizeof(*frame)))
 		return -EFAULT;

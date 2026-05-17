@@ -32,6 +32,7 @@
 #include <asm/sighandling.h>
 #include <asm/smap.h>
 #include <asm/gsseg.h>
+#include <asm/ibt.h>
 
 /*
  * The first GDT descriptor is reserved as 'NULL descriptor'.  As bits 0
@@ -301,6 +302,8 @@ int ia32_setup_frame(struct ksignal *ksig, struct pt_regs *regs)
 	unsafe_put_user(*((u64 *)&code), (u64 __user *)frame->retcode, Efault);
 	user_access_end();
 
+	setup_signal_ibt(regs);
+
 	/* Set up registers for signal handler */
 	regs->sp = (unsigned long) frame;
 	regs->ip = (unsigned long) ksig->ka.sa.sa_handler;
@@ -382,6 +385,8 @@ int ia32_setup_rt_frame(struct ksignal *ksig, struct pt_regs *regs)
 
 	if (__copy_siginfo_to_user32(&frame->info, &ksig->info))
 		return -EFAULT;
+
+	setup_signal_ibt(regs);
 
 	/* Set up registers for signal handler */
 	regs->sp = (unsigned long) frame;

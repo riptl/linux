@@ -114,4 +114,16 @@ static inline void ibt_restore(u64 save) { }
 
 #define ENDBR_INSN_SIZE		(4*HAS_KERNEL_IBT)
 
+#ifndef __ASSEMBLER__
+
+struct pt_regs;
+
+#ifdef CONFIG_X86_USER_IBT
+void setup_signal_ibt(struct pt_regs *regs);
+#else
+static inline void setup_signal_ibt(struct pt_regs *regs) {}
+#endif /* CONFIG_X86_USER_IBT */
+
+#endif /* __ASSEMBLER__ */
+
 #endif /* _ASM_X86_IBT_H */
