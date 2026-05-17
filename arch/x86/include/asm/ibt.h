@@ -114,6 +114,14 @@ static inline void ibt_restore(u64 save) { }
 
 #define ENDBR_INSN_SIZE		(4*HAS_KERNEL_IBT)
 
+#ifdef CONFIG_X86_USER_IBT
+#define ENDBR32_USER endbr32
+#define ENDBR64_USER endbr64
+#else
+#define ENDBR32_USER
+#define ENDBR64_USER
+#endif
+
 #ifndef __ASSEMBLER__
 
 #include <linux/prctl.h>
