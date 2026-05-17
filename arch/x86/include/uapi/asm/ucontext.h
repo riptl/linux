@@ -51,6 +51,23 @@
 #define UC_STRICT_RESTORE_SS	0x4
 #endif
 
+/*
+ * UC_WAIT_ENDBR indicates that the WAIT_FOR_ENDBR bit in IBT state was
+ * set when the signal was delivered.
+ *
+ * IBT is a hardware feature that restricts the valid targets of
+ * indirect calls and jumps to ENBDR instructions.
+ *
+ * When returning from a signal, IBT is enabled, and this flag is set,
+ * the CPU will check that the instruction pointer is at an ENDBR
+ * instruction.  On violation, a SIGSEGV with si_code=SEGV_CPERR will be
+ * raised after returning from the current signal.
+ *
+ * If IBT is disabled, this flag is never set when delivering a signal,
+ * and ignored when returning from a signal.
+ */
+#define UC_WAIT_ENDBR		0x8
+
 #include <asm-generic/ucontext.h>
 
 #endif /* _ASM_X86_UCONTEXT_H */

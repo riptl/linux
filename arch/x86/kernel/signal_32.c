@@ -162,8 +162,15 @@ SYSCALL32_DEFINE0(sigreturn)
 
 	set_current_blocked(&set);
 
+	/*
+	 * ia32_setup_frame does not back up IBT CPU state.
+	 */
+	if (!user_ibt_enabled(current))
+		goto badframe;
+
 	if (!ia32_restore_sigcontext(regs, &frame->sc))
 		goto badframe;
+
 	return regs->ax;
 
 badframe:
@@ -190,6 +197,8 @@ SYSCALL32_DEFINE0(rt_sigreturn)
 
 	if (!ia32_restore_sigcontext(regs, &frame->uc.uc_mcontext))
 		goto badframe;
+
+	user_ibt_sigreturn(regs, frame->uc.uc_flags & UC_WAIT_ENDBR);
 
 	if (restore_altstack32(&frame->uc.uc_stack))
 		goto badframe;
@@ -301,6 +310,8 @@ int ia32_setup_frame(struct ksignal *ksig, struct pt_regs *regs)
 	unsafe_put_user(*((u64 *)&code), (u64 __user *)frame->retcode, Efault);
 	user_access_end();
 
+	user_ibt_signal_enter(regs);
+
 	/* Set up registers for signal handler */
 	regs->sp = (unsigned long) frame;
 	regs->ip = (unsigned long) ksig->ka.sa.sa_handler;
@@ -333,6 +344,7 @@ int ia32_setup_rt_frame(struct ksignal *ksig, struct pt_regs *regs)
 	struct rt_sigframe_ia32 __user *frame;
 	void __user *restorer;
 	void __user *fp = NULL;
+	unsigned long uc_flags = 0UL;
 
 	/* unsafe_put_user optimizes that into a single 8 byte store */
 	static const struct {
@@ -358,9 +370,9 @@ int ia32_setup_rt_frame(struct ksignal *ksig, struct pt_regs *regs)
 
 	/* Create the ucontext.  */
 	if (static_cpu_has(X86_FEATURE_XSAVE))
-		unsafe_put_user(UC_FP_XSTATE, &frame->uc.uc_flags, Efault);
-	else
-		unsafe_put_user(0, &frame->uc.uc_flags, Efault);
+		uc_flags |= UC_FP_XSTATE;
+	uc_flags |= user_ibt_signal_enter(regs) ? UC_WAIT_ENDBR : 0;
+	unsafe_put_user(uc_flags, &frame->uc.uc_flags, Efault);
 	unsafe_put_user(0, &frame->uc.uc_link, Efault);
 	unsafe_save_altstack32(&frame->uc.uc_stack, regs->sp, Efault);
 
