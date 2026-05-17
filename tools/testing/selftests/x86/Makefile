@@ -14,7 +14,7 @@ TARGETS_C_BOTHBITS := single_step_syscall sysret_ss_attrs syscall_nt test_mremap
 			check_initial_reg_state sigreturn iopl ioperm \
 			test_vsyscall mov_ss_trap sigtrap_loop \
 			syscall_arg_fault fsgsbase_restore sigaltstack
-TARGETS_C_BOTHBITS += nx_stack
+TARGETS_C_BOTHBITS += nx_stack user_ibt
 TARGETS_C_32BIT_ONLY := entry_from_vm86 test_syscall_vdso unwind_vdso \
 			test_FCMOV test_FCOMI test_FISTTP \
 			vdso_restorer
@@ -138,3 +138,6 @@ $(OUTPUT)/avx_64: CFLAGS += -mno-avx -mno-avx512f
 $(OUTPUT)/amx_64: EXTRA_FILES += xstate.c
 $(OUTPUT)/avx_64: EXTRA_FILES += xstate.c
 $(OUTPUT)/apx_64: EXTRA_FILES += xstate.c
+
+$(OUTPUT)/user_ibt_32: CFLAGS += -fcf-protection=branch
+$(OUTPUT)/user_ibt_64: CFLAGS += -fcf-protection=branch
