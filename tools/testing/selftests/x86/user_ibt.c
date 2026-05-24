@@ -54,18 +54,18 @@ void __attribute__((naked, aligned(4096))) valid_target(void)
 #else
 	asm volatile("endbr32\n");
 #endif
-        asm volatile(
-                "ret\n"
-                ".p2align 12\n"
-        );
+	asm volatile(
+		"ret\n"
+		".p2align 12\n"
+	);
 }
 
 void __attribute__((nocf_check, naked, aligned(4096))) invalid_target(void)
 {
-        asm volatile(
-                "ret\n"
-                ".p2align 12\n"
-        );
+	asm volatile(
+		"ret\n"
+		".p2align 12\n"
+	);
 }
 
 void __attribute__((naked)) user_ibt_basic_test(void)
@@ -186,14 +186,14 @@ int user_ibt_signal_handler_invalid(void)
 
 static void sigreturn_segv_handler(int signum, siginfo_t *si, void *uc)
 {
-        void * addr = si->si_addr;
-        num_segv++;
-        if (si->si_code == SEGV_CPERR) {
-                got_cperr = 1;
-                return;
-        }
+	void * addr = si->si_addr;
+	num_segv++;
+	if (si->si_code == SEGV_CPERR) {
+		got_cperr = 1;
+		return;
+	}
 	if (si->si_code != SEGV_ACCERR ||
-            (addr != valid_target && addr != invalid_target))
+	    (addr != valid_target && addr != invalid_target))
 		asm volatile("ud2");
 	if (mprotect(addr, 4096, PROT_READ | PROT_EXEC))
 		_exit(1);
@@ -206,15 +206,15 @@ int user_ibt_sigreturn(void * target, bool valid)
 
 	/*
 	 * Indirect call a non-executable page, triggering a segfault at
-         * the call target. Handle the SIGSEGV by mapping the page
+	 * the call target. Handle the SIGSEGV by mapping the page
 	 * (containing an int3 instruction). Resume using rt_sigreturn
 	 * to continue at the indirect jump target. Possible outcomes:
 	 *   SIGSEGV with SEGV_CPERR: IBT violation detected
 	 *   SIGTRAP: IBT violation detection broken by signal handler
 	 */
 
-        if (mprotect(target, 4096, PROT_READ))
-                return 0;
+	if (mprotect(target, 4096, PROT_READ))
+		return 0;
 
 	num_segv = 0;
 	got_cperr = false;
@@ -224,14 +224,14 @@ int user_ibt_sigreturn(void * target, bool valid)
 	if (sigaction(SIGSEGV, &sa, NULL))
 		return 0;
 
-        /* Force an indirect call to test_page */
-        size_t volatile ptr = (size_t)target;
-        ((void (* volatile)(void))ptr)();
+	/* Force an indirect call to test_page */
+	size_t volatile ptr = (size_t)target;
+	((void (* volatile)(void))ptr)();
 
 	signal(SIGTRAP, SIG_DFL);
 	signal(SIGSEGV, SIG_DFL);
-        if (mprotect(target, 4096, PROT_READ | PROT_EXEC))
-                return 0;
+	if (mprotect(target, 4096, PROT_READ | PROT_EXEC))
+		return 0;
 
 	if (valid)
 		return num_segv == 1 && !got_cperr;
@@ -243,38 +243,38 @@ static volatile sig_atomic_t xsave_ok;
 
 static void check_xsave_handler(int signum, siginfo_t *si, void *uc_void)
 {
-        ucontext_t *uc = (ucontext_t *)uc_void;
-        void *xbuf = uc->uc_mcontext.fpregs;
+	ucontext_t *uc = (ucontext_t *)uc_void;
+	void *xbuf = uc->uc_mcontext.fpregs;
 	struct _fpx_sw_bytes *sw_bytes;
 
 	sw_bytes = get_fpx_sw_bytes(xbuf);
 	if (sw_bytes->magic1 != FP_XSTATE_MAGIC1)
-                return;
+		return;
 
-        /*
-         * The sigframe's XSAVE area must not contain CET_USER state,
-         * otherwise an attacker could disable IBT.
-         */
-        xsave_ok = !(get_fpx_sw_bytes_features(xbuf) & (1UL<<XFEATURE_CET_USER));
+	/*
+	 * The sigframe's XSAVE area must not contain CET_USER state,
+	 * otherwise an attacker could disable IBT.
+	 */
+	xsave_ok = !(get_fpx_sw_bytes_features(xbuf) & (1UL<<XFEATURE_CET_USER));
 }
 
 int user_ibt_xsave(void)
 {
-        pid_t pid = getpid();
-        struct sigaction sa = {};
+	pid_t pid = getpid();
+	struct sigaction sa = {};
 
-        if (pid < 0)
-                return 0;
+	if (pid < 0)
+		return 0;
 
-        sa.sa_sigaction = check_xsave_handler;
-        sa.sa_flags = SA_SIGINFO;
-        if (sigaction(SIGPWR, &sa, NULL))
-                return 0;
+	sa.sa_sigaction = check_xsave_handler;
+	sa.sa_flags = SA_SIGINFO;
+	if (sigaction(SIGPWR, &sa, NULL))
+		return 0;
 
-        xsave_ok = false;
-        if (kill(pid, SIGPWR))
-                return 0;
-        return xsave_ok;
+	xsave_ok = false;
+	if (kill(pid, SIGPWR))
+		return 0;
+	return xsave_ok;
 }
 
 int main(int argc, char *argv[])
