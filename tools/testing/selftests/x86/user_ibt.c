@@ -49,33 +49,34 @@ int main(int argc, char *argv[])
 void __attribute__((naked, aligned(4096))) valid_target(void)
 {
 #ifdef __x86_64__
-	asm volatile (
-		"endbr64\n"
-		"ret\n"
-	);
+	asm volatile("endbr64\n");
 #else
-	asm volatile (
-		"endbr32\n"
-		"ret\n"
-	);
+	asm volatile("endbr32\n");
 #endif
+        asm volatile(
+                "ret\n"
+                ".p2align 12\n"
+        );
 }
 
 void __attribute__((nocf_check, naked, aligned(4096))) invalid_target(void)
 {
-	asm volatile ("ret\n");
+        asm volatile(
+                "ret\n"
+                ".p2align 12\n"
+        );
 }
 
 void __attribute__((naked)) user_ibt_basic_test(void)
 {
 #ifdef __x86_64__
-	asm volatile (
+	asm volatile(
 		"leaq valid_target(%rip), %rax\n"
 		"call *%rax\n"
 		"ret\n"
 	);
 #else
-	asm volatile (
+	asm volatile(
 		"movl $valid_target, %eax\n"
 		"call *%eax\n"
 		"ret\n"
