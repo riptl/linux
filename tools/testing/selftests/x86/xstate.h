@@ -161,7 +161,11 @@ static inline void set_xstatebv(struct xsave_buffer *xbuf, uint64_t bv)
 }
 
 /* See 'struct _fpx_sw_bytes' at sigcontext.h */
+#ifdef __x86_64__
 #define SW_BYTES_OFFSET		464
+#else
+#define SW_BYTES_OFFSET		576
+#endif
 /* N.B. The struct's field name varies so read from the offset. */
 #define SW_BYTES_BV_OFFSET	(SW_BYTES_OFFSET + 8)
 
