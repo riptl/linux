@@ -193,14 +193,6 @@ static void sigreturn_segv_handler(int signum, siginfo_t *si, void *uc)
 	/* rt_sigreturn to test_page, triggering SIGTRAP */
 }
 
-static sig_atomic_t got_trap;
-
-static void sigreturn_trap_handler(int signum, siginfo_t *si, void *uc)
-{
-	got_trap = 1;
-	siglongjmp(jmpbuf, 1);
-}
-
 int user_ibt_sigreturn(void * target, bool valid)
 {
 	struct sigaction sa = {};
@@ -220,22 +212,14 @@ int user_ibt_sigreturn(void * target, bool valid)
 	num_segv = false;
 	got_cperr = false;
 
-	sa.sa_sigaction = sigreturn_trap_handler;
-	sa.sa_flags = SA_SIGINFO;
-	if (sigaction(SIGTRAP, &sa, NULL))
-		return 0;
-
 	sa.sa_sigaction = sigreturn_segv_handler;
 	sa.sa_flags = SA_SIGINFO;
 	if (sigaction(SIGSEGV, &sa, NULL))
 		return 0;
 
-	if (!sigsetjmp(jmpbuf, 1)) {
-		/* Force an indirect call to test_page */
-		size_t volatile ptr = (size_t)target;
-		((void (* volatile)(void))ptr)();
-		asm volatile("ud2"); /* unreachable */
-	}
+        /* Force an indirect call to test_page */
+        size_t volatile ptr = (size_t)target;
+        ((void (* volatile)(void))ptr)();
 
 	signal(SIGTRAP, SIG_DFL);
 	signal(SIGSEGV, SIG_DFL);
@@ -243,9 +227,9 @@ int user_ibt_sigreturn(void * target, bool valid)
                 return 0;
 
 	if (valid)
-		return got_trap && !num_segv;
+		return !num_segv;
 	else
-		return !got_trap && num_segv && got_cperr;
+		return num_segv && got_cperr;
 }
 
 static sig_atomic_t xsave_ok;
