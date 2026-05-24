@@ -18,6 +18,7 @@
 #include <linux/prctl.h>
 #include <ucontext.h>
 #include <unistd.h>
+#include "xstate.h"
 #include "../kselftest.h"
 
 /*
@@ -240,41 +241,21 @@ int user_ibt_sigreturn(void * target, bool valid)
 
 static sig_atomic_t xsave_ok;
 
-struct fpx_sw_bytes {
-    uint32_t magic1;
-    uint32_t extended_size;
-    uint64_t xfeatures;
-    uint32_t xstate_size;
-    uint32_t padding[7];
-};
-
-struct xsave_hdr {
-    uint64_t xstate_bv;
-};
-
-static void check_xsave_handler(int signum, siginfo_t *si, void *uc_)
+static void check_xsave_handler(int signum, siginfo_t *si, void *uc_void)
 {
-        ucontext_t *uc = uc_;
-        uint8_t * fp = (uint8_t *)uc->uc_mcontext.fpregs;
-        if (!fp)
-                return;
- struct fpx_sw_bytes *sw =
-        (struct fpx_sw_bytes *)(fp + 464);
+        ucontext_t *uc = (ucontext_t *)uc_void;
+        void *xbuf = uc->uc_mcontext.fpregs;
+	struct _fpx_sw_bytes *sw_bytes;
 
-        if (sw->magic1 != 0x46505853u)
-                return; /* expect extended XSAVE area when CET enabled */
-
-        if (sw->extended_size < 520)
+	sw_bytes = get_fpx_sw_bytes(xbuf);
+	if (sw_bytes->magic1 != FP_XSTATE_MAGIC1)
                 return;
 
-        uint32_t *magic2 = (uint32_t *)(fp + sw->extended_size - sizeof(uint32_t));
-
-        if (*magic2 != 0x46505845u)
-                return;
-
-        uint64_t xstate_bv = *(uint64_t *)(fp + 512);
-
-        xsave_ok = !( xstate_bv & 1UL<<11);
+        /*
+         * The sigframe's XSAVE area must not contain CET_USER state,
+         * otherwise an attacker could disable IBT.
+         */
+        xsave_ok = !(get_fpx_sw_bytes_features(xbuf) & (1UL<<XFEATURE_CET_USER));
 }
 
 int user_ibt_xsave(void)
