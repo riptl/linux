@@ -233,7 +233,7 @@ int user_ibt_sigreturn(void * target, bool valid)
                 return 0;
 
 	if (valid)
-		return num_segv == 1;
+		return num_segv == 1 && !got_cperr;
 	else
 		return num_segv == 2 && got_cperr;
 }
