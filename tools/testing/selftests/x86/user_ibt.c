@@ -186,6 +186,11 @@ int user_ibt_signal_handler_invalid(void)
 static void sigreturn_segv_handler(int signum, siginfo_t *si, void *uc)
 {
         void * addr = si->si_addr;
+        num_segv++;
+        if (si->si_code == SEGV_CPERR) {
+                got_cperr = 1;
+                return;
+        }
 	if (si->si_code != SEGV_ACCERR ||
             (addr != valid_target && addr != invalid_target))
 		asm volatile("ud2");
@@ -210,7 +215,7 @@ int user_ibt_sigreturn(void * target, bool valid)
         if (mprotect(target, 4096, PROT_READ))
                 return 0;
 
-	num_segv = false;
+	num_segv = 0;
 	got_cperr = false;
 
 	sa.sa_sigaction = sigreturn_segv_handler;
@@ -228,9 +233,9 @@ int user_ibt_sigreturn(void * target, bool valid)
                 return 0;
 
 	if (valid)
-		return !num_segv;
+		return num_segv == 1;
 	else
-		return num_segv && got_cperr;
+		return num_segv == 2 && got_cperr;
 }
 
 static sig_atomic_t xsave_ok;
