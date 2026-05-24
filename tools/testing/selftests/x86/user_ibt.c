@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
 	unsigned long lpad_status = PR_CFI_ENABLE;
 
 	ksft_print_header();
-	ksft_set_plan(3);
+	ksft_set_plan(8);
 
 	if (syscall(__NR_prctl, PR_SET_CFI, PR_CFI_BRANCH_LANDING_PADS, lpad_status, 0, 0)) {
 		if (errno == EINVAL || errno == EOPNOTSUPP)
