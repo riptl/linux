@@ -103,8 +103,8 @@ void __attribute__((naked)) user_ibt_notrack_test(void)
 }
 
 static sigjmp_buf jmpbuf;
-static sig_atomic_t num_segv;
-static sig_atomic_t got_cperr;
+static volatile sig_atomic_t num_segv;
+static volatile sig_atomic_t got_cperr;
 
 static void segv_handler(int signum, siginfo_t *si, void *uc)
 {
@@ -239,7 +239,7 @@ int user_ibt_sigreturn(void * target, bool valid)
 		return num_segv == 2 && got_cperr;
 }
 
-static sig_atomic_t xsave_ok;
+static volatile sig_atomic_t xsave_ok;
 
 static void check_xsave_handler(int signum, siginfo_t *si, void *uc_void)
 {
