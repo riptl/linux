@@ -124,6 +124,27 @@ noinstr unsigned long *fred_shstk_frame(struct pt_regs *regs)
 	return (unsigned long *)fred_info(regs)->resv;
 }
 
+/*
+ * Running off the bottom of the shadow stack faults on the guard page, and
+ * that #PF cannot push its frame either, so it ends in #DF.
+ */
+void kernel_shstk_report_overflow(struct pt_regs *regs)
+{
+	unsigned long *frame = fred_shstk_frame(regs);
+	unsigned long base, ssp;
+
+	if (!frame)
+		return;
+
+	base = (unsigned long)current->thread.kshstk;
+	ssp = frame[0];
+	if (!base || ssp < base - PAGE_SIZE || ssp >= base + 4 * sizeof(long))
+		return;
+
+	pr_emerg("BUG: kernel shadow stack overflow: SSP %016lx at the bottom of [%016lx, %016lx)\n",
+		 ssp, base, base + KERNEL_SHSTK_SIZE);
+}
+
 /* Mirror changes to regs->ip and regs->csx before ERETS */
 noinstr void __fred_shstk_sync_frame(struct pt_regs *regs)
 {

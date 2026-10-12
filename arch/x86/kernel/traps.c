@@ -54,6 +54,7 @@
 #include <asm/traps.h>
 #include <asm/desc.h>
 #include <asm/fred.h>
+#include <asm/shstk_kernel.h>
 #include <asm/fpu/api.h>
 #include <asm/cpu.h>
 #include <asm/cpu_entry_area.h>
@@ -707,6 +708,8 @@ DEFINE_IDTENTRY_DF(exc_double_fault)
 	if (get_stack_guard_info((void *)address, &info))
 		handle_stack_overflow(regs, address, &info);
 #endif
+
+	kernel_shstk_report_overflow(regs);
 
 	pr_emerg("PANIC: double fault, error_code: 0x%lx\n", error_code);
 	die("double fault", regs, error_code);
