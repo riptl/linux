@@ -16,6 +16,7 @@
 #include <asm/cpufeature.h>
 
 struct pt_regs;
+struct task_struct;
 
 #ifdef CONFIG_X86_KERNEL_SHADOW_STACK
 
@@ -56,6 +57,10 @@ static __always_inline void saveprevssp(void)
 	asm volatile("saveprevssp" ::: "memory");
 }
 
+void kernel_shstk_clear(struct task_struct *tsk);
+int kernel_shstk_alloc(struct task_struct *tsk);
+void kernel_shstk_free(struct task_struct *tsk);
+
 unsigned long *fred_shstk_frame(struct pt_regs *regs);
 void __fred_shstk_sync_frame(struct pt_regs *regs);
 
@@ -70,6 +75,9 @@ static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs)
 
 static __always_inline bool kernel_shstk_enabled(void) { return false; }
 static inline unsigned long rdssp(void) { return 0; }
+static inline void kernel_shstk_clear(struct task_struct *tsk) { }
+static inline int kernel_shstk_alloc(struct task_struct *tsk) { return 0; }
+static inline void kernel_shstk_free(struct task_struct *tsk) { }
 static inline unsigned long *fred_shstk_frame(struct pt_regs *regs) { return NULL; }
 static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs) { }
 

@@ -54,6 +54,7 @@
 #include <asm/mmu_context.h>
 #include <asm/msr.h>
 #include <asm/shstk.h>
+#include <asm/shstk_kernel.h>
 
 #include "process.h"
 
@@ -111,6 +112,8 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 	dst->thread.vm86 = NULL;
 #endif
 
+	/* Not inherited; copy_thread() allocates a new one */
+	kernel_shstk_clear(dst);
 	return 0;
 }
 
@@ -119,6 +122,8 @@ void arch_release_task_struct(struct task_struct *tsk)
 {
 	if (fpu_state_size_dynamic() && !(tsk->flags & (PF_KTHREAD | PF_USER_WORKER)))
 		fpstate_free(x86_task_fpu(tsk));
+
+	kernel_shstk_free(tsk);
 }
 #endif
 
@@ -185,6 +190,9 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 	frame->bp = encode_frame_pointer(childregs);
 	frame->ret_addr = (unsigned long) ret_from_fork_asm;
 	p->thread.sp = (unsigned long) fork_frame;
+	/* Early dup_task_struct() failures skip arch_release_task_struct() */
+	if (kernel_shstk_alloc(p))
+		return -ENOMEM;
 	p->thread.io_bitmap = NULL;
 	clear_tsk_thread_flag(p, TIF_IO_BITMAP);
 	p->thread.iopl_warn = 0;

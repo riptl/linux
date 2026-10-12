@@ -532,6 +532,10 @@ struct thread_struct {
 
 	struct thread_shstk	shstk;
 #endif
+
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	void			*kshstk;
+#endif
 };
 
 #ifdef CONFIG_X86_DEBUG_FPU
