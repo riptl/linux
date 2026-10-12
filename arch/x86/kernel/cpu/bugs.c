@@ -3280,6 +3280,28 @@ void cpu_bugs_smt_update(void)
 	mutex_unlock(&spec_ctrl_mutex);
 }
 
+/* Shadow stack is incompatible with mitigations that do unbalanced CALL/RET */
+static void __init kernel_shstk_check_mitigations(void)
+{
+	const char *why = NULL;
+
+	if (!boot_cpu_has(X86_FEATURE_KERNEL_SHSTK))
+		return;
+
+	if (boot_cpu_has(X86_FEATURE_RETPOLINE) &&
+	    !boot_cpu_has(X86_FEATURE_RETPOLINE_LFENCE))
+		why = "retpoline";
+	else if (boot_cpu_has(X86_FEATURE_CALL_DEPTH))
+		why = "call depth tracking";
+	else if (boot_cpu_has(X86_FEATURE_SRSO) || boot_cpu_has(X86_FEATURE_SRSO_ALIAS))
+		why = "SRSO safe-RET";
+
+	if (why) {
+		pr_info("Kernel shadow stack disabled: incompatible with %s\n", why);
+		setup_clear_cpu_cap(X86_FEATURE_KERNEL_SHSTK);
+	}
+}
+
 void __init cpu_select_mitigations(void)
 {
 	/*
@@ -3371,6 +3393,8 @@ void __init cpu_select_mitigations(void)
 	bhi_apply_mitigation();
 	tsa_apply_mitigation();
 	vmscape_apply_mitigation();
+
+	kernel_shstk_check_mitigations();
 }
 
 #ifdef CONFIG_SYSFS

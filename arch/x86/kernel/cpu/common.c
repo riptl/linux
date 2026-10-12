@@ -524,6 +524,19 @@ void cr4_init(void)
 	if (static_branch_likely(&cr_pinning))
 		cr4 = (cr4 & ~cr4_pinned_mask) | cr4_pinned_bits;
 
+	/*
+	 * Pinning sets CR4.CET here, before setup_cet() runs on this CPU.
+	 * IA32_S_CET may survive INIT; clear SH_STK_EN first or this
+	 * function's RET is checked against a stale SSP.
+	 */
+	if (IS_ENABLED(CONFIG_X86_KERNEL_SHADOW_STACK) && (cr4 & X86_CR4_CET)) {
+		u64 s_cet;
+
+		rdmsrq(MSR_IA32_S_CET, s_cet);
+		if (s_cet & (CET_SHSTK_EN | CET_WRSS_EN))
+			wrmsrq(MSR_IA32_S_CET, s_cet & ~(CET_SHSTK_EN | CET_WRSS_EN));
+	}
+
 	__write_cr4(cr4);
 
 	/* Initialize cr4 shadow for this CPU. */
@@ -634,7 +647,7 @@ __noendbr void ibt_restore(u64 save)
 
 static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 {
-	bool user_shstk, kernel_ibt;
+	bool user_shstk, kernel_ibt, kernel_shstk;
 
 	if (!IS_ENABLED(CONFIG_X86_CET))
 		return;
@@ -642,12 +655,19 @@ static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 	kernel_ibt = HAS_KERNEL_IBT && cpu_feature_enabled(X86_FEATURE_IBT);
 	user_shstk = cpu_feature_enabled(X86_FEATURE_SHSTK) &&
 		     IS_ENABLED(CONFIG_X86_USER_SHADOW_STACK);
+	/* IDT delivery and the IST entry code cannot use a kernel shadow stack */
+	kernel_shstk = IS_ENABLED(CONFIG_X86_KERNEL_SHADOW_STACK) &&
+		       cpu_feature_enabled(X86_FEATURE_SHSTK) &&
+		       cpu_feature_enabled(X86_FEATURE_FRED) &&
+		       !test_bit(X86_FEATURE_KERNEL_SHSTK, (unsigned long *)cpu_caps_cleared);
 
-	if (!kernel_ibt && !user_shstk)
+	if (!kernel_ibt && !user_shstk && !kernel_shstk)
 		return;
 
 	if (user_shstk)
 		set_cpu_cap(c, X86_FEATURE_USER_SHSTK);
+	if (kernel_shstk)
+		set_cpu_cap(c, X86_FEATURE_KERNEL_SHSTK);
 
 	if (kernel_ibt)
 		wrmsrq(MSR_IA32_S_CET, CET_ENDBR_EN);
@@ -1764,6 +1784,9 @@ static void __init cpu_parse_early_param(void)
 
 	if (cmdline_find_option_bool(boot_command_line, "nousershstk"))
 		setup_clear_cpu_cap(X86_FEATURE_USER_SHSTK);
+
+	if (cmdline_find_option_bool(boot_command_line, "nokernelshstk"))
+		setup_clear_cpu_cap(X86_FEATURE_KERNEL_SHSTK);
 
 	/* Minimize the gap between FRED is available and available but disabled. */
 	arglen = cmdline_find_option(boot_command_line, "fred", arg, sizeof(arg));
