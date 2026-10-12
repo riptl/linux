@@ -659,6 +659,11 @@ page_fault_oops(struct pt_regs *regs, unsigned long error_code,
 		goto oops;
 	}
 
+	/* Shadow stack access to a non shadow stack page, or an overflow */
+	if (error_code & X86_PF_SHSTK)
+		pr_emerg("BUG: kernel shadow stack access to %px at %pS\n",
+			 (void *)address, (void *)regs->ip);
+
 #ifdef CONFIG_VMAP_STACK
 	/*
 	 * Stack overflow?  During boot, we can fault near the initial
@@ -955,7 +960,7 @@ do_sigbus(struct pt_regs *regs, unsigned long error_code, unsigned long address,
 
 static int spurious_kernel_fault_check(unsigned long error_code, pte_t *pte)
 {
-	if ((error_code & X86_PF_WRITE) && !pte_write(*pte))
+	if ((error_code & X86_PF_WRITE) && !(pte_flags(*pte) & _PAGE_RW))
 		return 0;
 
 	if ((error_code & X86_PF_INSTR) && !pte_exec(*pte))
