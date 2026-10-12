@@ -46,6 +46,9 @@ static void __used common(void)
 #ifdef CONFIG_STACKPROTECTOR
 	OFFSET(TASK_stack_canary, task_struct, stack_canary);
 #endif
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	OFFSET(TASK_kssp, task_struct, thread.kssp);
+#endif
 
 	BLANK();
 	OFFSET(pbe_address, pbe, address);

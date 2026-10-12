@@ -191,6 +191,16 @@ SYM_FUNC_START(__switch_to_asm)
 	movq	%rsp, TASK_threadsp(%rdi)
 	movq	TASK_threadsp(%rsi), %rsp
 
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	/*
+	 * Save SSP, RSTORSSP onto the next task's shadow stack and leave a
+	 * restore token on the previous one.  See kernel_shstk_setup_thread().
+	 */
+	ALTERNATIVE "", \
+		    __stringify(rdsspq %rax; movq %rax, TASK_kssp(%rdi); movq TASK_kssp(%rsi), %rax; rstorssp -8(%rax); saveprevssp), \
+		    X86_FEATURE_KERNEL_SHSTK
+#endif
+
 #ifdef CONFIG_STACKPROTECTOR
 	movq	TASK_stack_canary(%rsi), %rbx
 	movq	%rbx, PER_CPU_VAR(__stack_chk_guard)

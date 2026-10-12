@@ -535,6 +535,8 @@ struct thread_struct {
 
 #ifdef CONFIG_X86_KERNEL_SHADOW_STACK
 	void			*kshstk;
+	/* SSP to resume at; the restore token is in the slot below */
+	unsigned long		kssp;
 #endif
 };
 

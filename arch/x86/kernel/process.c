@@ -193,6 +193,7 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 	/* Early dup_task_struct() failures skip arch_release_task_struct() */
 	if (kernel_shstk_alloc(p))
 		return -ENOMEM;
+	kernel_shstk_setup_thread(p);
 	p->thread.io_bitmap = NULL;
 	clear_tsk_thread_flag(p, TIF_IO_BITMAP);
 	p->thread.iopl_warn = 0;

@@ -60,6 +60,7 @@ static __always_inline void saveprevssp(void)
 void kernel_shstk_clear(struct task_struct *tsk);
 int kernel_shstk_alloc(struct task_struct *tsk);
 void kernel_shstk_free(struct task_struct *tsk);
+void kernel_shstk_setup_thread(struct task_struct *p);
 
 unsigned long *fred_shstk_frame(struct pt_regs *regs);
 void __fred_shstk_sync_frame(struct pt_regs *regs);
@@ -78,6 +79,7 @@ static inline unsigned long rdssp(void) { return 0; }
 static inline void kernel_shstk_clear(struct task_struct *tsk) { }
 static inline int kernel_shstk_alloc(struct task_struct *tsk) { return 0; }
 static inline void kernel_shstk_free(struct task_struct *tsk) { }
+static inline void kernel_shstk_setup_thread(struct task_struct *p) { }
 static inline unsigned long *fred_shstk_frame(struct pt_regs *regs) { return NULL; }
 static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs) { }
 

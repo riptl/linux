@@ -11,10 +11,25 @@
 #include <asm/fred.h>
 #include <asm/processor.h>
 #include <asm/shstk_kernel.h>
+#include <asm/switch_to.h>
+
+static unsigned long kshstk_top(struct task_struct *tsk)
+{
+	return (unsigned long)tsk->thread.kshstk + KERNEL_SHSTK_SIZE;
+}
+
+/* Write shadow stack memory through the direct map */
+static void kshstk_write_alias(unsigned long addr, unsigned long val)
+{
+	struct page *page = vmalloc_to_page((void *)addr);
+
+	*(unsigned long *)(page_address(page) + offset_in_page(addr)) = val;
+}
 
 void kernel_shstk_clear(struct task_struct *tsk)
 {
 	tsk->thread.kshstk = NULL;
+	tsk->thread.kssp = 0;
 }
 
 int kernel_shstk_alloc(struct task_struct *tsk)
@@ -73,6 +88,25 @@ void kernel_shstk_free(struct task_struct *tsk)
 	node->vaddr = shstk;
 	if (llist_add(&node->ll, &kshstk_free_list))
 		schedule_work(&kshstk_free_work);
+}
+
+/*
+ * Seed a new task's shadow stack for its first switch-in:
+ *
+ *	top - 8		ret_from_fork_asm, popped by __switch_to()'s RET
+ *	top - 16	restore token for RSTORSSP in __switch_to_asm()
+ */
+void kernel_shstk_setup_thread(struct task_struct *p)
+{
+	unsigned long top;
+
+	if (!p->thread.kshstk)
+		return;
+
+	top = kshstk_top(p);
+	kshstk_write_alias(top - 8, (unsigned long)ret_from_fork_asm);
+	kshstk_write_alias(top - 16, SHSTK_RSTOR_TOKEN(top - 8));
+	p->thread.kssp = top - 8;
 }
 
 /*
