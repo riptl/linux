@@ -68,6 +68,31 @@ struct cea_exception_stacks {
 extern unsigned long __this_cpu_ist_top_va(enum exception_stack_ordering stack);
 extern unsigned long __this_cpu_ist_bottom_va(enum exception_stack_ordering stack);
 
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+/* Kernel shadow stacks for FRED stack levels 1-3 (IA32_FRED_SSP*) */
+#define SHSTKS_MEMBERS(guardsize)				\
+	char	SL1_guard[guardsize];				\
+	char	SL1_shstk[PAGE_SIZE];				\
+	char	SL2_guard[guardsize];				\
+	char	SL2_shstk[PAGE_SIZE];				\
+	char	SL3_guard[guardsize];				\
+	char	SL3_shstk[PAGE_SIZE];				\
+	char	SL_top_guard[guardsize];
+
+/* The shadow stacks' physical storage. No guard pages required */
+struct exception_shstks {
+	SHSTKS_MEMBERS(0)
+};
+
+/* The effective cpu entry area mapping with guard pages. */
+struct cea_exception_shstks {
+	SHSTKS_MEMBERS(PAGE_SIZE)
+};
+
+#define CEA_SHSTK_TOP(cea, lvl)					\
+	((unsigned long)&(cea)->shstks.SL##lvl##_shstk + PAGE_SIZE)
+#endif /* CONFIG_X86_KERNEL_SHADOW_STACK */
+
 #endif
 
 #ifdef CONFIG_X86_32
@@ -115,6 +140,10 @@ struct cpu_entry_area {
 	 */
 	struct cea_exception_stacks estacks;
 #endif
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	/* Kernel shadow stacks for FRED stack levels 1-3 with guard pages */
+	struct cea_exception_shstks shstks;
+#endif
 	/*
 	 * Per CPU debug store for Intel performance monitoring. Wastes a
 	 * full page at the moment.
@@ -142,4 +171,9 @@ static __always_inline struct entry_stack *cpu_entry_stack(int cpu)
 	return &get_cpu_entry_area(cpu)->entry_stack_page.stack;
 }
 
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+/* Top of this CPU's kernel shadow stack for FRED stack level @lvl (1-3) */
+#define __this_cpu_fred_shstk_top_va(lvl)				\
+	CEA_SHSTK_TOP(get_cpu_entry_area(smp_processor_id()), lvl)
+#endif
 #endif

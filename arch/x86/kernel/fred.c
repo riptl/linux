@@ -105,4 +105,11 @@ void cpu_init_fred_rsps(void)
 	wrmsrq(MSR_IA32_FRED_RSP1, this_cpu_fred_rsp(FRED_STACK_LEVEL_1));
 	wrmsrq(MSR_IA32_FRED_RSP2, this_cpu_fred_rsp(FRED_STACK_LEVEL_2));
 	wrmsrq(MSR_IA32_FRED_RSP3, this_cpu_fred_rsp(FRED_STACK_LEVEL_3));
+
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	/* Level 0 is per task */
+	wrmsrq(MSR_IA32_FRED_SSP1, __this_cpu_fred_shstk_top_va(1));
+	wrmsrq(MSR_IA32_FRED_SSP2, __this_cpu_fred_shstk_top_va(2));
+	wrmsrq(MSR_IA32_FRED_SSP3, __this_cpu_fred_shstk_top_va(3));
+#endif
 }

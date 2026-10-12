@@ -183,7 +183,34 @@ static void __init percpu_setup_exception_stacks(unsigned int cpu)
 		}
 	}
 }
+
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+static DEFINE_PER_CPU_PAGE_ALIGNED(struct exception_shstks, exception_shstks);
+
+#define cea_map_shstk(lvl) do {						\
+	cea_map_percpu_pages(cea->shstks.SL##lvl## _shstk,		\
+			     shstks->SL##lvl## _shstk, 1,		\
+			     PAGE_KERNEL_SHADOW_STACK);			\
+	} while (0)
+
+/* Without CR4.CET/SH_STK_EN these are plain read-only pages, so map unconditionally */
+static void __init percpu_setup_exception_shstks(unsigned int cpu)
+{
+	struct exception_shstks *shstks = per_cpu_ptr(&exception_shstks, cpu);
+	struct cpu_entry_area *cea = get_cpu_entry_area(cpu);
+
+	BUILD_BUG_ON(sizeof(exception_shstks) % PAGE_SIZE != 0);
+
+	cea_map_shstk(1);
+	cea_map_shstk(2);
+	cea_map_shstk(3);
+}
 #else
+static inline void percpu_setup_exception_shstks(unsigned int cpu) { }
+#endif
+#else
+static inline void percpu_setup_exception_shstks(unsigned int cpu) { }
+
 static void __init percpu_setup_exception_stacks(unsigned int cpu)
 {
 	struct cpu_entry_area *cea = get_cpu_entry_area(cpu);
@@ -258,6 +285,8 @@ static void __init setup_cpu_entry_area(unsigned int cpu)
 #endif
 
 	percpu_setup_exception_stacks(cpu);
+
+	percpu_setup_exception_shstks(cpu);
 
 	percpu_setup_debug_store(cpu);
 }
