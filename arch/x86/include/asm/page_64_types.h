@@ -21,6 +21,8 @@
 #define IRQ_STACK_ORDER (2 + KASAN_STACK_ORDER)
 #define IRQ_STACK_SIZE (PAGE_SIZE << IRQ_STACK_ORDER)
 
+#define KERNEL_SHSTK_SIZE (THREAD_SIZE / 2)
+
 /*
  * The index for the tss.ist[] array. The hardware limit is 7 entries.
  */

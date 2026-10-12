@@ -229,6 +229,7 @@ enum page_cache_mode {
 #define __PAGE_KERNEL_LARGE	 (__PP|__RW|   0|___A|__NX|___D|_PSE|___G)
 #define __PAGE_KERNEL_LARGE_EXEC (__PP|__RW|   0|___A|   0|___D|_PSE|___G)
 #define __PAGE_KERNEL_WP	 (__PP|__RW|   0|___A|__NX|___D|   0|___G| __WP)
+#define __PAGE_KERNEL_SHADOW_STACK (__PP|   0|   0|___A|__NX|___D|   0|___G)
 
 
 #define __PAGE_KERNEL_IO		__PAGE_KERNEL
@@ -254,6 +255,7 @@ enum page_cache_mode {
 #define PAGE_KERNEL_LARGE	__pgprot_mask(__PAGE_KERNEL_LARGE      | _ENC)
 #define PAGE_KERNEL_LARGE_EXEC	__pgprot_mask(__PAGE_KERNEL_LARGE_EXEC | _ENC)
 #define PAGE_KERNEL_VVAR	__pgprot_mask(__PAGE_KERNEL_VVAR       | _ENC)
+#define PAGE_KERNEL_SHADOW_STACK __pgprot_mask(__PAGE_KERNEL_SHADOW_STACK | _ENC)
 
 #define PAGE_KERNEL_IO		__pgprot_mask(__PAGE_KERNEL_IO)
 #define PAGE_KERNEL_IO_NOCACHE	__pgprot_mask(__PAGE_KERNEL_IO_NOCACHE)
