@@ -68,23 +68,32 @@ static __always_inline void sync_core(void)
 
 	/*
 	 * For all other processors, there are quite a few ways to do this.
-	 * IRET-to-self is nice because it works on every CPU, at any CPL
+	 * IRET-to-self is nice because it works on most CPUs, at any CPL
 	 * (so it's compatible with paravirtualization), and it never exits
-	 * to a hypervisor.  The only downsides are that it's a bit slow
-	 * (it seems to be a bit more than 2x slower than the fastest
-	 * options) and that it unmasks NMIs.  The "push %cs" is needed,
-	 * because in paravirtual environments __KERNEL_CS may not be a
-	 * valid CS value when we do IRET directly.
+	 * to a hypervisor.  The downside is that this is incompatible with
+	 * kernel shadow stacks. It's also a bit slow (it seems to be a bit
+	 * more than 2x slower than the fastest options) and it unmasks NMIs.
+	 * The "push %cs" is needed, because in paravirtual environments
+	 *__KERNEL_CS may not be a valid CS value when we do IRET directly.
 	 *
-	 * In case NMI unmasking or performance ever becomes a problem,
-	 * the next best option appears to be MOV-to-CR2 and an
-	 * unconditional jump.  That sequence also works on all CPUs,
-	 * but it will fault at CPL3 (i.e. Xen PV).
+	 * The next best option is MOV-to-CR2 and an unconditional jump.
+	 * That sequence is shstk-compatible, works on all CPUs, but it will
+	 * fault at CPL3 (i.e. Xen PV).
 	 *
 	 * CPUID is the conventional way, but it's nasty: it doesn't
 	 * exist on some 486-like CPUs, and it usually exits to a
 	 * hypervisor.
 	 */
+
+	if (cpu_feature_enabled(X86_FEATURE_KERNEL_SHSTK)) {
+		unsigned long cr2 = native_read_cr2();
+
+		asm volatile("mov %0, %%cr2\n\t"
+			     "jmp 1f\n\t"
+			     "1:" : : "r" (cr2) : "memory");
+		return;
+	}
+
 	iret_to_self();
 }
 
