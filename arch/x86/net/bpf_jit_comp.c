@@ -18,6 +18,7 @@
 #include <asm/ftrace.h>
 #include <asm/set_memory.h>
 #include <asm/nospec-branch.h>
+#include <asm/shstk_kernel.h>
 #include <asm/text-patching.h>
 #include <asm/unwind.h>
 #include <asm/cfi.h>
@@ -3754,6 +3755,19 @@ static int __arch_prepare_bpf_trampoline(struct bpf_tramp_image *im, void *rw_im
 		im->ksym.fp_end = prog - (u8 *)rw_image;
 
 	if (flags & BPF_TRAMP_F_SKIP_FRAME) {
+		/*
+		 * Pop the fentry return address from the shadow stack too.
+		 * INCSSP raises #UD while shadow stacks are off, so guard it
+		 * with RDSSP.  RCX is free at this point.
+		 */
+		if (kernel_shstk_enabled()) {
+			EMIT2(0x31, 0xC9);			/* xor ecx, ecx */
+			EMIT5(0xF3, 0x48, 0x0F, 0x1E, 0xC9);	/* rdsspq rcx */
+			EMIT3(0x48, 0x85, 0xC9);		/* test rcx, rcx */
+			EMIT2(X86_JE, 10);			/* je skip (mov 5 + incssp 5) */
+			EMIT5(0xB9, 0x01, 0x00, 0x00, 0x00);	/* mov ecx, 1 */
+			EMIT5(0xF3, 0x48, 0x0F, 0xAE, 0xE9);	/* incsspq rcx */
+		}
 		/* skip our return address and return to parent */
 		EMIT4(0x48, 0x83, 0xC4, 8); /* add rsp, 8 */
 	}
@@ -4232,8 +4246,10 @@ bool bpf_jit_supports_exceptions(void)
 	/* We unwind through both kernel frames (starting from within bpf_throw
 	 * call) and BPF frames. Therefore we require ORC unwinder to be enabled
 	 * to walk kernel frames and reach BPF frames in the stack trace.
+	 *
+	 * bpf_throw() does not unwind the kernel shadow stack.
 	 */
-	return IS_ENABLED(CONFIG_UNWINDER_ORC);
+	return IS_ENABLED(CONFIG_UNWINDER_ORC) && !kernel_shstk_enabled();
 }
 
 bool bpf_jit_supports_private_stack(void)
