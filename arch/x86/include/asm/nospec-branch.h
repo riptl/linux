@@ -132,6 +132,20 @@
 	int3;					\
 772:
 
+/* Pop the RSB stuffing CALLs off the kernel shadow stack, if enabled */
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+#define __SHSTK_POP_RSB(reg, nr)			\
+	xor	reg, reg;				\
+	rdsspq	reg;					\
+	test	reg, reg;				\
+	jz	773f;					\
+	mov	$(nr), reg;				\
+	incsspq	reg;					\
+773:
+#else
+#define __SHSTK_POP_RSB(reg, nr)
+#endif
+
 /*
  * Stuff the entire RSB.
  *
@@ -150,6 +164,7 @@
 	jnz	771b;					\
 	/* barrier for jnz misprediction */		\
 	lfence;						\
+	__SHSTK_POP_RSB(reg, nr)			\
 	CREDIT_CALL_DEPTH				\
 	CALL_THUNKS_DEBUG_INC_CTXSW
 #else
@@ -173,10 +188,11 @@
  * On PBRSB-vulnerable CPUs, it is not safe for a RET to be executed
  * before this point.
  */
-#define __FILL_ONE_RETURN				\
+#define __FILL_ONE_RETURN(reg)				\
 	__FILL_RETURN_SLOT				\
 	add	$(BITS_PER_LONG/8), %_ASM_SP;		\
-	lfence;
+	lfence;						\
+	__SHSTK_POP_RSB(reg, 1)
 
 /*
  * Helper for detecting if an interrupt occurred at an unsafe location within
@@ -289,7 +305,7 @@
 .macro FILL_RETURN_BUFFER reg:req nr:req ftr:req ftr2=ALT_NOT(X86_FEATURE_ALWAYS)
 	ALTERNATIVE_2 "jmp .Lskip_rsb_\@", \
 		__stringify(__FILL_RETURN_BUFFER(\reg,\nr)), \ftr, \
-		__stringify(nop;nop;__FILL_ONE_RETURN), \ftr2
+		__stringify(nop;nop;__FILL_ONE_RETURN(\reg)), \ftr2
 
 .Lskip_rsb_\@:
 .endm
