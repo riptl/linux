@@ -204,6 +204,7 @@ void restore_fpregs_from_fpstate(struct fpstate *fpstate, u64 mask)
 		 */
 		mask = fpu_kernel_cfg.max_features & mask;
 
+		/* os_xrstor() leaves IA32_PL0_SSP alone, see host_xrstor_mask() */
 		os_xrstor(fpstate, mask);
 	} else {
 		if (use_fxsr())

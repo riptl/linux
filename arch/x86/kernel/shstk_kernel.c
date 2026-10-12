@@ -13,6 +13,9 @@
 #include <asm/shstk_kernel.h>
 #include <asm/switch_to.h>
 
+/* Cache of IA32_PL0_SSP, see fred_update_ssp0() */
+DEFINE_PER_CPU(unsigned long, fred_ssp0);
+
 static unsigned long kshstk_top(struct task_struct *tsk)
 {
 	return (unsigned long)tsk->thread.kshstk + KERNEL_SHSTK_SIZE;

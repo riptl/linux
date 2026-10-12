@@ -114,6 +114,30 @@ static __always_inline void fred_update_rsp0(void)
 }
 
 unsigned long this_cpu_fred_rsp(enum fred_stack_level lvl);
+
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+DECLARE_PER_CPU(unsigned long, fred_ssp0);
+
+/*
+ * FRED events from ring 3 load SSP from IA32_PL0_SSP.
+ * ERETU from this frame raises #CP if SSP != IA32_PL0_SSP.
+ */
+static __always_inline void fred_update_ssp0(void)
+{
+	unsigned long ssp0;
+
+	if (!cpu_feature_enabled(X86_FEATURE_KERNEL_SHSTK))
+		return;
+
+	ssp0 = (unsigned long)current->thread.kshstk + KERNEL_SHSTK_SIZE;
+	if (__this_cpu_read(fred_ssp0) != ssp0) {
+		wrmsrns(MSR_IA32_PL0_SSP, ssp0);
+		__this_cpu_write(fred_ssp0, ssp0);
+	}
+}
+#else
+static inline void fred_update_ssp0(void) { }
+#endif /* CONFIG_X86_KERNEL_SHADOW_STACK */
 #else /* CONFIG_X86_FRED */
 static __always_inline unsigned long fred_event_data(struct pt_regs *regs) { return 0; }
 static inline void cpu_init_fred_exceptions(void) { }
@@ -122,6 +146,7 @@ static inline void fred_complete_exception_setup(void) { }
 static inline void fred_sync_rsp0(unsigned long rsp0) { }
 static inline void fred_update_rsp0(void) { }
 static inline unsigned long this_cpu_fred_rsp(enum fred_stack_level lvl) { return 0; }
+static inline void fred_update_ssp0(void) { }
 #endif /* CONFIG_X86_FRED */
 #endif /* !__ASSEMBLER__ */
 

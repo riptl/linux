@@ -6,6 +6,7 @@
 #include <asm/fpu/xstate.h>
 #include <asm/fpu/xcr.h>
 #include <asm/msr.h>
+#include <asm/shstk_kernel.h>
 
 #ifdef CONFIG_X86_64
 DECLARE_PER_CPU(u64, xfd_state);
@@ -229,6 +230,20 @@ static inline void os_xsave(struct fpstate *fpstate)
 	WARN_ON_FPU(err);
 }
 
+static inline u64 host_xrstor_mask(struct fpstate *fpstate, u64 mask)
+{
+	if (!kernel_shstk_enabled())
+		return mask;
+
+	/*
+	 * With kernel shadow stacks, IA32_PL0_SSP is manually kept in sync via
+	 * fred_update_ssp0(). Only KVM uses XSAVE for shadow stack.
+	 */
+	if (!fpstate->is_guest)
+		mask &= ~XFEATURE_MASK_CET_KERNEL;
+	return mask;
+}
+
 /*
  * Restore processor xstate from xsave area.
  *
@@ -236,8 +251,11 @@ static inline void os_xsave(struct fpstate *fpstate)
  */
 static inline void os_xrstor(struct fpstate *fpstate, u64 mask)
 {
-	u32 lmask = mask;
-	u32 hmask = mask >> 32;
+	u32 lmask, hmask;
+
+	mask = host_xrstor_mask(fpstate, mask);
+	lmask = mask;
+	hmask = mask >> 32;
 
 	xfd_validate_state(fpstate, mask, true);
 	XSTATE_XRESTORE(&fpstate->regs.xsave, lmask, hmask);
@@ -246,7 +264,7 @@ static inline void os_xrstor(struct fpstate *fpstate, u64 mask)
 /* Restore of supervisor state. Does not require XFD */
 static inline void os_xrstor_supervisor(struct fpstate *fpstate)
 {
-	u64 mask = xfeatures_mask_supervisor();
+	u64 mask = host_xrstor_mask(fpstate, xfeatures_mask_supervisor());
 	u32 lmask = mask;
 	u32 hmask = mask >> 32;
 
@@ -349,9 +367,12 @@ static inline int xrstor_from_user_sigframe(struct xregs_state __user *buf, u64 
 static inline int os_xrstor_safe(struct fpstate *fpstate, u64 mask)
 {
 	struct xregs_state *xstate = &fpstate->regs.xsave;
-	u32 lmask = mask;
-	u32 hmask = mask >> 32;
+	u32 lmask, hmask;
 	int err;
+
+	mask = host_xrstor_mask(fpstate, mask);
+	lmask = mask;
+	hmask = mask >> 32;
 
 	/* Ensure that XFD is up to date */
 	xfd_update_state(fpstate);
