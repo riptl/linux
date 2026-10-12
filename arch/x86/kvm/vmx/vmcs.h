@@ -35,6 +35,7 @@ struct vmcs_host_state {
 	unsigned long gs_base;
 	unsigned long fs_base;
 	unsigned long rsp;
+	unsigned long ssp;
 
 	u16           fs_sel, gs_sel, ldt_sel;
 #ifdef CONFIG_X86_64

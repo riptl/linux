@@ -41,6 +41,11 @@ SYM_FUNC_START(__vmx_vcpu_run)
 	push %_ASM_ARG2
 
 	lea (%_ASM_SP), %_ASM_ARG2
+	/* Host SSP for VM-Exit to restore, 0 with kernel shadow stacks off */
+	xor %_ASM_ARG3, %_ASM_ARG3
+#ifdef CONFIG_X86_64
+	ALTERNATIVE "", "rdsspq %rdx", X86_FEATURE_KERNEL_SHSTK
+#endif
 	call vmx_update_host_rsp
 
 	/* Reload @vmx, _ASM_ARG1 may be modified by vmx_update_host_rsp().  */

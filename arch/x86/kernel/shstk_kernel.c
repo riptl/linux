@@ -19,6 +19,7 @@
 
 /* Cache of IA32_PL0_SSP, see fred_update_ssp0() */
 DEFINE_PER_CPU(unsigned long, fred_ssp0);
+EXPORT_PER_CPU_SYMBOL_GPL(fred_ssp0);
 
 static unsigned long kshstk_top(struct task_struct *tsk)
 {

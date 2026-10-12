@@ -7096,17 +7096,12 @@ int kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 		return -EIO;
 	}
 
-	if (boot_cpu_has(X86_FEATURE_SHSTK) || boot_cpu_has(X86_FEATURE_IBT)) {
+	/*
+	 * The host SSP is restored on VM-Exit: VMX loads it from HOST_SSP, see
+	 * vmx_update_host_rsp(), SVM from the host save area.
+	 */
+	if (boot_cpu_has(X86_FEATURE_SHSTK) || boot_cpu_has(X86_FEATURE_IBT))
 		rdmsrq(MSR_IA32_S_CET, kvm_host.s_cet);
-		/*
-		 * Linux doesn't yet support supervisor shadow stacks (SSS), so
-		 * KVM doesn't save/restore the associated MSRs, i.e. KVM may
-		 * clobber the host values.  Yell and refuse to load if SSS is
-		 * unexpectedly enabled, e.g. to avoid crashing the host.
-		 */
-		if (WARN_ON_ONCE(kvm_host.s_cet & CET_SHSTK_EN))
-			return -EIO;
-	}
 
 	memset(&kvm_caps, 0, sizeof(kvm_caps));
 

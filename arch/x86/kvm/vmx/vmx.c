@@ -1594,6 +1594,16 @@ void vmx_vcpu_load_vmcs(struct kvm_vcpu *vcpu, int cpu)
 			vmcs_write64(HOST_IA32_FRED_RSP1, this_cpu_fred_rsp(FRED_STACK_LEVEL_1));
 			vmcs_write64(HOST_IA32_FRED_RSP2, this_cpu_fred_rsp(FRED_STACK_LEVEL_2));
 			vmcs_write64(HOST_IA32_FRED_RSP3, this_cpu_fred_rsp(FRED_STACK_LEVEL_3));
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+			/* Same as cpu_init_fred_rsps() */
+			vmcs_write64(HOST_IA32_FRED_SSP1, __this_cpu_fred_shstk_top_va(1));
+			vmcs_write64(HOST_IA32_FRED_SSP2, __this_cpu_fred_shstk_top_va(2));
+			vmcs_write64(HOST_IA32_FRED_SSP3, __this_cpu_fred_shstk_top_va(3));
+#else
+			vmcs_write64(HOST_IA32_FRED_SSP1, 0);
+			vmcs_write64(HOST_IA32_FRED_SSP2, 0);
+			vmcs_write64(HOST_IA32_FRED_SSP3, 0);
+#endif
 		}
 
 		vmx->loaded_vmcs->cpu = cpu;
@@ -4670,11 +4680,6 @@ void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 		/* FRED CONFIG and STKLVLS are the same on all CPUs */
 		vmcs_write64(HOST_IA32_FRED_CONFIG, kvm_host.fred_config);
 		vmcs_write64(HOST_IA32_FRED_STKLVLS, kvm_host.fred_stklvls);
-
-		/* Linux doesn't support kernel shadow stacks, thus SSPs are 0s */
-		vmcs_write64(HOST_IA32_FRED_SSP1, 0);
-		vmcs_write64(HOST_IA32_FRED_SSP2, 0);
-		vmcs_write64(HOST_IA32_FRED_SSP3, 0);
 	}
 #else
 	vmcs_write16(HOST_DS_SELECTOR, __KERNEL_DS);  /* 22.2.4 */
@@ -4711,13 +4716,8 @@ void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 		vmcs_write64(HOST_IA32_EFER, kvm_host.efer);
 
 	/*
-	 * Supervisor shadow stack is not enabled on host side, i.e.,
-	 * host IA32_S_CET.SHSTK_EN bit is guaranteed to 0 now, per SDM
-	 * description(RDSSP instruction), SSP is not readable in CPL0,
-	 * so resetting the two registers to 0s at VM-Exit does no harm
-	 * to kernel execution. When execution flow exits to userspace,
-	 * SSP is reloaded from IA32_PL3_SSP. Check SDM Vol.2A/B Chapter
-	 * 3 and 4 for details.
+	 * HOST_SSP is written per VM-Enter, see vmx_update_host_rsp().  The
+	 * interrupt SSP table is only used by IDT event delivery.
 	 */
 	if (enable_cet) {
 		vmcs_writel(HOST_S_CET, kvm_host.s_cet);
@@ -7667,11 +7667,19 @@ static void vmx_refresh_guest_perf_global_control(struct kvm_vcpu *vcpu)
 	pmu->global_ctrl = vmcs_read64(GUEST_IA32_PERF_GLOBAL_CTRL);
 }
 
-void noinstr vmx_update_host_rsp(struct vcpu_vmx *vmx, unsigned long host_rsp)
+void noinstr vmx_update_host_rsp(struct vcpu_vmx *vmx, unsigned long host_rsp,
+				 unsigned long host_ssp)
 {
 	if (unlikely(host_rsp != vmx->loaded_vmcs->host_state.rsp)) {
 		vmx->loaded_vmcs->host_state.rsp = host_rsp;
 		vmcs_writel(HOST_RSP, host_rsp);
+	}
+
+	/* The RET from __vmx_vcpu_run() needs the SSP live at VM-Enter */
+	if (unlikely(host_ssp != vmx->loaded_vmcs->host_state.ssp)) {
+		vmx->loaded_vmcs->host_state.ssp = host_ssp;
+		if (enable_cet)
+			vmcs_writel(HOST_SSP, host_ssp);
 	}
 }
 

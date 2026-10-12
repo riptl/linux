@@ -1538,6 +1538,13 @@ static void svm_prepare_host_switch(struct kvm_vcpu *vcpu)
 		fred_sync_rsp0(svm->msr_guest_fred_rsp0);
 	}
 
+	/*
+	 * SEV-ES #VMEXIT loads IA32_PL0_SSP from the host save area, where it
+	 * is never written; have the next return to user mode rewrite it.
+	 */
+	if (is_sev_es_guest(vcpu))
+		fred_invalidate_ssp0();
+
 	svm->guest_state_loaded = false;
 }
 

@@ -3495,6 +3495,12 @@ int __init tdx_hardware_setup(void)
 		goto success_disable_tdx;
 	}
 
+	/* SEAMRET's handling of host SSP/S_CET/PL0_SSP is unverified */
+	if (kvm_host.s_cet & CET_SHSTK_EN) {
+		pr_err("TDX is not supported with kernel shadow stacks yet\n");
+		goto success_disable_tdx;
+	}
+
 	r = __tdx_hardware_setup();
 	if (r) {
 		/*

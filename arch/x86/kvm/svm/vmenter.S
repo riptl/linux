@@ -103,7 +103,10 @@ SYM_FUNC_START(__svm_vcpu_run)
 	/* Clobbers EFLAGS.ZF */
 	SVM_CLEAR_CPU_BUFFERS
 
-	/* Enter guest mode */
+	/*
+	 * Enter guest mode.  VMRUN saves the host S_CET, SSP and ISST_ADDR
+	 * along with RSP and #VMEXIT reloads them.
+	 */
 3:	vmrun %_ASM_AX
 4:
 	/* Pop @svm to RAX while it's the only available register. */

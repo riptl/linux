@@ -11,6 +11,7 @@
 #include <asm/fpu/sched.h>
 #include <asm/fpu/signal.h>
 #include <asm/fpu/types.h>
+#include <asm/fred.h>
 #include <asm/msr.h>
 #include <asm/traps.h>
 #include <asm/irq_regs.h>
@@ -424,10 +425,13 @@ int fpu_swap_kvm_fpstate(struct fpu_guest *guest_fpu, bool enter_guest)
 	 * Clear fpu->__task_fpstate after switching back to host state.
 	 * A non-NULL __task_fpstate means guest state is still resident in
 	 * hardware; reset it only once host state has been restored.
+	 *
+	 * IA32_PL0_SSP still holds the guest's value, see fred_update_ssp0().
 	 */
 	if (!enter_guest) {
 		barrier();
 		WRITE_ONCE(fpu->__task_fpstate, NULL);
+		fred_invalidate_ssp0();
 	}
 
 	fpregs_mark_activate();

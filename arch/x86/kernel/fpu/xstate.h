@@ -5,6 +5,7 @@
 #include <asm/cpufeature.h>
 #include <asm/fpu/xstate.h>
 #include <asm/fpu/xcr.h>
+#include <asm/fred.h>
 #include <asm/msr.h>
 #include <asm/shstk_kernel.h>
 
@@ -241,6 +242,8 @@ static inline u64 host_xrstor_mask(struct fpstate *fpstate, u64 mask)
 	 */
 	if (!fpstate->is_guest)
 		mask &= ~XFEATURE_MASK_CET_KERNEL;
+	else if (mask & XFEATURE_MASK_CET_KERNEL)
+		fred_invalidate_ssp0();
 	return mask;
 }
 

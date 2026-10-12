@@ -1249,7 +1249,7 @@ static bool is_xstate_managed_msr(struct kvm_vcpu *vcpu, u32 msr)
  * in hardware (the kernel can load its FPU state in IRQ context).
  *
  * Note, loading guest values for U_CET and PL[0-3]_SSP while executing in the
- * kernel is safe, as U_CET is specific to userspace, and PL[0-3]_SSP are only
+ * kernel is safe, as U_CET is specific to userspace, and PL[1-3]_SSP are only
  * consumed when transitioning to lower privilege levels, i.e. are effectively
  * only consumed by userspace as well.
  */
