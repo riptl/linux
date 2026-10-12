@@ -9,8 +9,17 @@
 #include <asm/kvm_para.h>
 #endif
 
+#ifdef CONFIG_X86_FRED
+#include <asm/fred.h>
+#endif
+
 int main(void)
 {
+#ifdef CONFIG_X86_FRED
+	OFFSET(FRED_FRAME_resv, fred_frame, info.resv);
+	BLANK();
+#endif
+
 #ifdef CONFIG_PARAVIRT
 #ifdef CONFIG_PARAVIRT_XXL
 #ifdef CONFIG_DEBUG_ENTRY

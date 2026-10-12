@@ -15,6 +15,8 @@
 #include <linux/types.h>
 #include <asm/cpufeature.h>
 
+struct pt_regs;
+
 #ifdef CONFIG_X86_KERNEL_SHADOW_STACK
 
 static __always_inline bool kernel_shstk_enabled(void)
@@ -54,10 +56,22 @@ static __always_inline void saveprevssp(void)
 	asm volatile("saveprevssp" ::: "memory");
 }
 
+unsigned long *fred_shstk_frame(struct pt_regs *regs);
+void __fred_shstk_sync_frame(struct pt_regs *regs);
+
+/* ERETS checks regs->ip and regs->csx against the shadow stack frame */
+static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs)
+{
+	if (kernel_shstk_enabled())
+		__fred_shstk_sync_frame(regs);
+}
+
 #else /* !CONFIG_X86_KERNEL_SHADOW_STACK */
 
 static __always_inline bool kernel_shstk_enabled(void) { return false; }
 static inline unsigned long rdssp(void) { return 0; }
+static inline unsigned long *fred_shstk_frame(struct pt_regs *regs) { return NULL; }
+static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs) { }
 
 #endif /* CONFIG_X86_KERNEL_SHADOW_STACK */
 

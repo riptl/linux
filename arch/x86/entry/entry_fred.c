@@ -11,6 +11,7 @@
 #include <asm/fred.h>
 #include <asm/idtentry.h>
 #include <asm/processor-flags.h>
+#include <asm/shstk_kernel.h>
 #include <asm/syscall.h>
 #include <asm/trapnr.h>
 #include <asm/traps.h>
@@ -266,7 +267,7 @@ __visible noinstr void fred_entry_from_user(struct pt_regs *regs)
 	return fred_bad_type(regs, error_code);
 }
 
-__visible noinstr void fred_entry_from_kernel(struct pt_regs *regs)
+static __always_inline void __fred_entry_from_kernel(struct pt_regs *regs)
 {
 	unsigned long error_code = regs->orig_ax;
 
@@ -292,6 +293,12 @@ __visible noinstr void fred_entry_from_kernel(struct pt_regs *regs)
 	}
 
 	return fred_bad_type(regs, error_code);
+}
+
+__visible noinstr void fred_entry_from_kernel(struct pt_regs *regs)
+{
+	__fred_entry_from_kernel(regs);
+	fred_shstk_sync_frame(regs);
 }
 
 #if IS_ENABLED(CONFIG_KVM_INTEL)

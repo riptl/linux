@@ -30,6 +30,25 @@
 .endm
 
 /*
+ * After FRED event entry, SSP points at the shadow stack event frame.
+ * (Includes CS, LIP, interrupted SSP, and popped by ERETS.)
+ *
+ * Record the shstk frame address in the reserved field of the regular frame.
+ * RDSSP is a NOP if shadow stacks are off/unsupported.
+ */
+.macro FRED_SHSTK_RECORD_FRAME
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	ALTERNATIVE "", __stringify(xorl %eax, %eax; rdsspq %rax; movq %rax, FRED_FRAME_resv(%rsp)), X86_FEATURE_KERNEL_SHSTK
+#endif
+.endm
+
+.macro FRED_SHSTK_CLEAR_FRAME
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	ALTERNATIVE "", __stringify(movq $0, FRED_FRAME_resv(%rsp)), X86_FEATURE_KERNEL_SHSTK
+#endif
+.endm
+
+/*
  * The new RIP value that FRED event delivery establishes is
  * IA32_FRED_CONFIG & ~FFFH for events that occur in ring 3.
  * Thus the FRED ring 3 entry point must be 4K page aligned.
@@ -54,7 +73,9 @@ SYM_CODE_END(asm_fred_entrypoint_user)
 	.org asm_fred_entrypoint_user + 256, 0xcc
 SYM_CODE_START_NOALIGN(asm_fred_entrypoint_kernel)
 	FRED_ENTER
+	FRED_SHSTK_RECORD_FRAME
 	call	fred_entry_from_kernel
+	FRED_SHSTK_CLEAR_FRAME
 	FRED_EXIT
 	ERETS
 SYM_CODE_END(asm_fred_entrypoint_kernel)
