@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0
 
 #include <linux/ptrace.h>
+#include <linux/uaccess.h>
 #include <asm/bugs.h>
+#include <asm/kdebug.h>
 #include <asm/msr.h>
+#include <asm/shstk_kernel.h>
 #include <asm/traps.h>
 
 enum cp_error_code {
@@ -110,9 +113,37 @@ static void ibt_clear_fred_wfe(struct pt_regs *regs)
 	regs->fred_cs.wfe = 0;
 }
 
+/* Returning would re-execute the faulting instruction, so always fatal */
+static void __noreturn do_kernel_shstk_fault(struct pt_regs *regs,
+					     unsigned long error_code)
+{
+	unsigned long *frame = fred_shstk_frame(regs);
+	unsigned long ssp = frame ? frame[0] : 0;
+	unsigned long top = 0, ret = 0;
+
+	if (ssp && get_kernel_nofault(top, (unsigned long *)ssp))
+		top = 0;
+	if (get_kernel_nofault(ret, (unsigned long *)regs->sp))
+		ret = 0;
+
+	pr_emerg("kernel shadow stack violation: %s at %pS, SSP %016lx\n",
+		 cp_err_string(error_code), (void *)regs->ip, ssp);
+	pr_emerg("  shadow stack top: %016lx (%pS), regular stack top: %016lx (%pS)\n",
+		 top, (void *)top, ret, (void *)ret);
+	die("kernel shadow stack violation", regs, error_code);
+	panic("kernel shadow stack violation");
+}
+
 static void do_kernel_cp_fault(struct pt_regs *regs, unsigned long error_code)
 {
 	if ((error_code & CP_EC) != CP_ENDBR) {
+		if (kernel_shstk_enabled())
+			do_kernel_shstk_fault(regs, error_code);
+		do_unexpected_cp(regs, error_code);
+		return;
+	}
+
+	if (!cpu_feature_enabled(X86_FEATURE_IBT)) {
 		do_unexpected_cp(regs, error_code);
 		return;
 	}
@@ -154,7 +185,7 @@ DEFINE_IDTENTRY_ERRORCODE(exc_control_protection)
 		else
 			do_unexpected_cp(regs, error_code);
 	} else {
-		if (cpu_feature_enabled(X86_FEATURE_IBT))
+		if (cpu_feature_enabled(X86_FEATURE_IBT) || kernel_shstk_enabled())
 			do_kernel_cp_fault(regs, error_code);
 		else
 			do_unexpected_cp(regs, error_code);
