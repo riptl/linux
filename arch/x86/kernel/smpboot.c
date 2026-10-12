@@ -310,6 +310,10 @@ static void notrace __noendbr start_secondary(void *unused)
 	x86_cpuinit.setup_percpu_clockev();
 
 	wmb();
+
+	/* start_secondary() never returns */
+	kernel_shstk_enable_cpu(0);
+
 	cpu_startup_entry(CPUHP_AP_ONLINE_IDLE);
 }
 ANNOTATE_NOENDBR_SYM(start_secondary);

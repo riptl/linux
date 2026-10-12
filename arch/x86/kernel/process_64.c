@@ -58,6 +58,7 @@
 #include <asm/unistd.h>
 #include <asm/fsgsbase.h>
 #include <asm/fred.h>
+#include <asm/shstk_kernel.h>
 #include <asm/msr.h>
 #ifdef CONFIG_IA32_EMULATION
 /* Not included via unistd.h */
@@ -143,6 +144,8 @@ void __show_regs(struct pt_regs *regs, enum show_regs_mode mode,
 
 	if (cr4 & X86_CR4_PKE)
 		printk("%sPKRU: %08x\n", log_lvl, read_pkru());
+
+	show_shstk_regs(regs, log_lvl);
 }
 
 void release_thread(struct task_struct *dead_task)

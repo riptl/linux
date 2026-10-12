@@ -190,6 +190,10 @@ config X86_DISABLED_FEATURE_USER_SHSTK
 	def_bool y
 	depends on !X86_USER_SHADOW_STACK
 
+config X86_DISABLED_FEATURE_KERNEL_SHSTK
+	def_bool y
+	depends on !X86_KERNEL_SHADOW_STACK
+
 config X86_DISABLED_FEATURE_IBT
 	def_bool y
 	depends on !X86_KERNEL_IBT

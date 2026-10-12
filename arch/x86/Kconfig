@@ -1864,6 +1864,19 @@ config X86_USER_SHADOW_STACK
 
 	  If unsure, say N.
 
+config X86_KERNEL_SHADOW_STACK
+	bool "X86 kernel shadow stack"
+	depends on X86_64
+	depends on X86_FRED
+	depends on AS_WRUSS
+	select X86_CET
+	help
+	  Protect kernel return addresses with a CET supervisor shadow
+	  stack.  Enabled at boot on CPUs with shadow stacks and FRED;
+	  "nokernelshstk" disables it.
+
+	  If unsure, say N.
+
 config INTEL_TDX_HOST
 	bool "Intel Trust Domain Extensions (TDX) host support"
 	depends on CPU_SUP_INTEL

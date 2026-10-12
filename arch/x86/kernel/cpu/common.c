@@ -66,6 +66,7 @@
 #include <asm/cpu_device_id.h>
 #include <asm/efi.h>
 #include <asm/fred.h>
+#include <asm/shstk_kernel.h>
 #include <asm/uv/uv.h>
 #include <asm/ia32.h>
 #include <asm/set_memory.h>
@@ -2717,6 +2718,15 @@ void __init arch_cpu_finalize_init(void)
 	 * hypercalls work when the SWIOTLB bounce buffers are decrypted.
 	 */
 	mem_encrypt_init();
+
+	/*
+	 * start_kernel() never returns, so our own return is the only pending
+	 * one.  Must stay the last call; barrier() prevents a tail call.
+	 */
+	if (kernel_shstk_enabled())
+		pr_info("CET detected: Kernel Shadow Stack enabled\n");
+	kernel_shstk_enable_cpu((unsigned long)__builtin_return_address(0));
+	barrier();
 }
 
 /* Control TLB flushing methods */

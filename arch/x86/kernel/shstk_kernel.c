@@ -6,6 +6,7 @@
 #include <linux/llist.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
+#include <linux/uaccess.h>
 #include <linux/smp.h>
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
@@ -169,6 +170,24 @@ static __always_inline void __kernel_shstk_enable(unsigned long top,
 }
 
 /*
+ * The caller must never return.  @outer_ret is its own return address if
+ * its caller may return (arch_cpu_finalize_init()).
+ */
+noinline void kernel_shstk_enable_cpu(unsigned long outer_ret)
+{
+	if (!kernel_shstk_enabled())
+		return;
+
+	/* The init task never went through copy_thread() */
+	if (!current->thread.kshstk && kernel_shstk_alloc(current))
+		panic("Cannot allocate the kernel shadow stack for CPU %d\n",
+		      smp_processor_id());
+
+	__kernel_shstk_enable(kshstk_top(current), outer_ret,
+			      (unsigned long)__builtin_return_address(0));
+}
+
+/*
  * Re-enable after suspend, hibernation or kexec jump.  @base is the slot for
  * the caller's return address, recorded on the way down.
  */
@@ -277,6 +296,26 @@ noinstr void fred_shstk_emulate_ret(struct pt_regs *regs, unsigned long ret_ip)
 	}
 
 	wrss64(frame[0] + 8, &frame[0]);
+}
+
+/* The live SSP and, for a kernel-mode event frame, the shadow stack frame */
+void show_shstk_regs(struct pt_regs *regs, const char *log_lvl)
+{
+	unsigned long *frame, f[3], top = 0;
+
+	if (!kernel_shstk_enabled())
+		return;
+
+	printk("%sSSP: %016lx", log_lvl, rdssp());
+
+	frame = fred_shstk_frame(regs);
+	if (!frame || copy_from_kernel_nofault(f, frame, sizeof(f))) {
+		pr_cont("\n");
+		return;
+	}
+	copy_from_kernel_nofault(&top, (void *)f[0], sizeof(top));
+	pr_cont(" frame: %px SSP: %016lx *SSP: %016lx LIP: %016lx CS: %04lx\n",
+		frame, f[0], top, f[1], f[2]);
 }
 
 /*
