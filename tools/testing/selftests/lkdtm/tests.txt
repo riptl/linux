@@ -87,3 +87,14 @@ FORTIFY_MEM_OBJECT detected buffer overflow
 FORTIFY_MEM_MEMBER detected field-spanning write
 PPC_SLB_MULTIHIT Recovered
 #PPC_RADIX_TLBIEL Triggers unrecoverable MCE
+#SHSTK_RET_MISMATCH Crashes entire system on success
+SHSTK_WRITE_SHSTK call trace:|shadow stack
+SHSTK_WRITE_NOFAULT ok: ordinary store to the shadow stack was rejected
+SHSTK_WRSS_TEXT kernel shadow stack access
+SHSTK_WRSS_DATA kernel shadow stack access
+SHSTK_WRSS_SELF ok: WRSS to the shadow stack succeeded
+#SHSTK_RSTORSSP_BAD_TOKEN Crashes entire system on success
+SHSTK_RSTORSSP_NOT_SHSTK kernel shadow stack access
+SHSTK_REPORT ok: shadow stack mapping
+SHSTK_DEPTH_SAFE ok: shadow stack depth
+#SHSTK_DEPTH_OVERFLOW Crashes entire system on success

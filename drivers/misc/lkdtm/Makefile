@@ -12,6 +12,7 @@ lkdtm-$(CONFIG_LKDTM)		+= kstack_erase.o
 lkdtm-$(CONFIG_LKDTM)		+= cfi.o
 lkdtm-$(CONFIG_LKDTM)		+= fortify.o
 lkdtm-$(CONFIG_PPC_BOOK3S_64)	+= powerpc.o
+lkdtm-$(CONFIG_X86_KERNEL_SHADOW_STACK)	+= shstk.o
 
 KASAN_SANITIZE_stackleak.o	:= n
 

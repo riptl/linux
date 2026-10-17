@@ -85,6 +85,7 @@ extern struct crashtype_category stackleak_crashtypes;
 extern struct crashtype_category cfi_crashtypes;
 extern struct crashtype_category fortify_crashtypes;
 extern struct crashtype_category powerpc_crashtypes;
+extern struct crashtype_category shstk_crashtypes;
 
 /* Each category's init/exit routines. */
 void __init lkdtm_bugs_init(int *recur_param);

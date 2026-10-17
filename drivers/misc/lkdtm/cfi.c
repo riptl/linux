@@ -186,9 +186,18 @@ check_redirected:
 		pr_expected_config(CONFIG_SHADOW_CALL_STACK);
 		return;
 	}
-	pr_warn("This is probably expected, since this %s was built *without* %s=y nor %s=y\n",
+	/*
+	 * With x86 kernel shadow stacks the first redirection above raises
+	 * #CP and panics; reaching this means the feature is not active.
+	 */
+	if (IS_ENABLED(CONFIG_X86_KERNEL_SHADOW_STACK)) {
+		pr_expected_config(CONFIG_X86_KERNEL_SHADOW_STACK);
+		return;
+	}
+	pr_warn("This is probably expected, since this %s was built *without* %s=y, %s=y nor %s=y\n",
 		lkdtm_kernel_info,
-		"CONFIG_ARM64_PTR_AUTH_KERNEL", "CONFIG_SHADOW_CALL_STACK");
+		"CONFIG_ARM64_PTR_AUTH_KERNEL", "CONFIG_SHADOW_CALL_STACK",
+		"CONFIG_X86_KERNEL_SHADOW_STACK");
 }
 
 static struct crashtype crashtypes[] = {

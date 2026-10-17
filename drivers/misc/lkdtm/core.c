@@ -99,6 +99,9 @@ static const struct crashtype_category *crashtype_categories[] = {
 #ifdef CONFIG_PPC_BOOK3S_64
 	&powerpc_crashtypes,
 #endif
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	&shstk_crashtypes,
+#endif
 };
 
 /* Global kprobe entry and crashtype. */
