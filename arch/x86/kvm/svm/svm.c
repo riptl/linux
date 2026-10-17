@@ -3268,15 +3268,15 @@ static int svm_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr)
 		break;
 	case MSR_IA32_S_CET:
 		svm->vmcb->save.s_cet = data;
-		vmcb_mark_dirty(svm->vmcb01.ptr, VMCB_CET);
+		vmcb_mark_dirty(svm->vmcb, VMCB_CET);
 		break;
 	case MSR_IA32_INT_SSP_TAB:
 		svm->vmcb->save.isst_addr = data;
-		vmcb_mark_dirty(svm->vmcb01.ptr, VMCB_CET);
+		vmcb_mark_dirty(svm->vmcb, VMCB_CET);
 		break;
 	case MSR_KVM_INTERNAL_GUEST_SSP:
 		svm->vmcb->save.ssp = data;
-		vmcb_mark_dirty(svm->vmcb01.ptr, VMCB_CET);
+		vmcb_mark_dirty(svm->vmcb, VMCB_CET);
 		break;
 	case MSR_TSC_AUX:
 		/*
