@@ -182,7 +182,22 @@ struct vmcb_save_area_cached {
 	} pmc[6];
 	u64 perf_cntr_global_status;
 	u64 perf_cntr_global_control;
+	/* FRED_RSP1-3, STKLVLS, SSP1-3, CONFIG in MSR order */
+	u64 fred[MSR_IA32_FRED_CONFIG - MSR_IA32_FRED_RSP1 + 1];
 };
+
+/* The FRED MSRs switched by VMRUN/#VMEXIT are contiguous in the save area */
+#define SVM_NR_FRED_MSRS	(MSR_IA32_FRED_CONFIG - MSR_IA32_FRED_RSP1 + 1)
+
+static inline u64 *vmcb_fred_msrs(struct vmcb_save_area *save)
+{
+	return &save->fred_rsp1;
+}
+
+static inline void svm_copy_fred(u64 *to, const u64 *from)
+{
+	memcpy(to, from, SVM_NR_FRED_MSRS * sizeof(u64));
+}
 
 struct vmcb_ctrl_area_cached {
 	u32 intercepts[MAX_INTERCEPT];
@@ -208,6 +223,8 @@ struct vmcb_ctrl_area_cached {
 	u64 next_rip;
 	u64 nested_cr3;
 	u64 misc_ctl2;
+	u64 exit_int_data;
+	u64 event_inj_data;
 	u32 clean;
 	union {
 #if IS_ENABLED(CONFIG_HYPERV) || IS_ENABLED(CONFIG_KVM_HYPERV)

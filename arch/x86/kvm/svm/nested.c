@@ -434,6 +434,13 @@ static bool nested_vmcb_check_controls(struct kvm_vcpu *vcpu,
 	return true;
 }
 
+/* L1 gave L2 its own FRED MSRs; otherwise L2 shares L1's */
+static bool nested_vmcb12_has_vfred(struct kvm_vcpu *vcpu)
+{
+	return guest_cpu_cap_has(vcpu, X86_FEATURE_FRED) &&
+	       (to_svm(vcpu)->nested.ctl.misc_ctl2 & SVM_MISC2_ENABLE_V_FRED);
+}
+
 /* Common checks that apply to both L1 and L2 state.  */
 static bool nested_vmcb_check_save(struct kvm_vcpu *vcpu,
 				   struct vmcb_save_area_cached *save,
@@ -468,6 +475,29 @@ static bool nested_vmcb_check_save(struct kvm_vcpu *vcpu,
 	/* Note, SVM doesn't have any additional restrictions on CR4. */
 	if (CC(!__kvm_is_valid_cr4(vcpu, save->cr4)))
 		return false;
+
+	/* VMRUN checks the FRED MSRs it loads like WRMSR would */
+	if (nested_vmcb12_has_vfred(vcpu)) {
+		int i;
+
+		for (i = 0; i < SVM_NR_FRED_MSRS; i++) {
+			u32 msr = MSR_IA32_FRED_RSP1 + i;
+			u64 val = save->fred[i], reserved;
+
+			if (CC(is_noncanonical_msr_address(val, vcpu)))
+				return false;
+			if (msr == MSR_IA32_FRED_CONFIG)
+				reserved = FRED_CONFIG_RESERVED;
+			else if (msr <= MSR_IA32_FRED_RSP3)
+				reserved = GENMASK_ULL(5, 0);
+			else if (msr == MSR_IA32_FRED_STKLVLS)
+				reserved = 0;
+			else
+				reserved = GENMASK_ULL(2, 0);
+			if (CC(val & reserved))
+				return false;
+		}
+	}
 
 	if (CC(!kvm_valid_efer(vcpu, save->efer)))
 		return false;
@@ -547,10 +577,17 @@ void __nested_copy_vmcb_control_to_cache(struct kvm_vcpu *vcpu,
 	to->exit_int_info       = from->exit_int_info;
 	to->exit_int_info_err   = from->exit_int_info_err;
 	to->event_inj           = from->event_inj & ~SVM_EVTINJ_RESERVED_BITS;
+	/* The nested exception bit only exists with FRED */
+	if (guest_cpu_cap_has(vcpu, X86_FEATURE_FRED))
+		to->event_inj   |= from->event_inj & SVM_EVTINJ_NESTED_EXCEPTION;
 	to->event_inj_err       = from->event_inj_err;
+	to->event_inj_data      = from->event_inj_data;
+	to->exit_int_data       = from->exit_int_data;
 	to->next_rip            = from->next_rip;
 	to->nested_cr3          = from->nested_cr3;
 	to->misc_ctl2		= from->misc_ctl2;
+	if (!guest_cpu_cap_has(vcpu, X86_FEATURE_FRED))
+		to->misc_ctl2 &= ~SVM_MISC2_ENABLE_V_FRED;
 	to->pause_filter_count  = from->pause_filter_count;
 	to->pause_filter_thresh = from->pause_filter_thresh;
 
@@ -606,6 +643,7 @@ static void __nested_copy_vmcb_save_to_cache(struct vmcb_save_area_cached *to,
 
 	svm_copy_lbrs(to, from);
 	svm_copy_pmcs(to, from);
+	svm_copy_fred(to->fred, vmcb_fred_msrs(from));
 }
 
 void nested_copy_vmcb_save_to_cache(struct vcpu_svm *svm,
@@ -668,6 +706,14 @@ static void nested_save_pending_event_to_vmcb12(struct vcpu_svm *svm,
 			exit_int_info |= SVM_EVTINJ_VALID_ERR;
 			vmcb12->control.exit_int_info_err =
 				vcpu->arch.exception.error_code;
+		}
+
+		/* FRED: nested exception flag and event data */
+		if (is_fred_enabled(vcpu)) {
+			if (vcpu->arch.exception.is_nested)
+				exit_int_info |= SVM_EVTINJ_NESTED_EXCEPTION;
+			vmcb12->control.exit_int_data =
+				vcpu->arch.exception.event_data;
 		}
 
 	} else if (vcpu->arch.nmi_injected) {
@@ -840,6 +886,19 @@ static void nested_vmcb02_prepare_save(struct vcpu_svm *svm)
 		svm_copy_pmcs(&vmcb02->save, save);
 	else if (kvm_vcpu_has_mediated_pmu_caps(vcpu, KVM_MEDIATED_PMU_CAP_HW_SWITCHED))
 		svm_copy_pmcs(&vmcb02->save, &vmcb01->save);
+
+	/*
+	 * vmcb02 always runs with V_FRED, so hardware loads L2's FRED MSRs
+	 * from vmcb02: vmcb12's if L1 virtualizes FRED for L2, L1's own
+	 * otherwise.  FRED_RSP0 is software managed at every level.
+	 */
+	if (guest_cpu_cap_has(vcpu, X86_FEATURE_FRED)) {
+		if (nested_vmcb12_has_vfred(vcpu))
+			svm_copy_fred(vmcb_fred_msrs(&vmcb02->save), save->fred);
+		else
+			svm_copy_fred(vmcb_fred_msrs(&vmcb02->save),
+				      vmcb_fred_msrs(&vmcb01->save));
+	}
 }
 
 static inline bool is_evtinj_soft(u32 evtinj)
@@ -975,6 +1034,7 @@ static void nested_vmcb02_prepare_control(struct vcpu_svm *svm)
 	vmcb02->control.int_state           = vmcb12_ctrl->int_state;
 	vmcb02->control.event_inj           = vmcb12_ctrl->event_inj;
 	vmcb02->control.event_inj_err       = vmcb12_ctrl->event_inj_err;
+	vmcb02->control.event_inj_data      = vmcb12_ctrl->event_inj_data;
 
 	/*
 	 * If nrips is exposed to L1, take NextRIP as-is.  Otherwise, L1
@@ -1001,6 +1061,12 @@ static void nested_vmcb02_prepare_control(struct vcpu_svm *svm)
 	}
 
 	/* SVM_MISC2_ENABLE_V_LBR is controlled by svm_update_lbrv() */
+
+	/* L2 never runs on L0's FRED MSRs, see nested_vmcb02_prepare_save() */
+	if (guest_cpu_cap_has(vcpu, X86_FEATURE_FRED))
+		vmcb02->control.misc_ctl2 |= SVM_MISC2_ENABLE_V_FRED;
+	else
+		vmcb02->control.misc_ctl2 &= ~SVM_MISC2_ENABLE_V_FRED;
 
 	/* L0 uses hardware-switched mode for both vmcb01 and vmcb02 */
 	if (kvm_vcpu_has_mediated_pmu_caps(vcpu, KVM_MEDIATED_PMU_CAP_HW_SWITCHED))
@@ -1254,6 +1320,9 @@ void svm_copy_vmrun_state(struct vmcb_save_area *to_save,
 
 	if (kvm_cpu_cap_has(X86_FEATURE_PERFCTR_VIRT))
 		svm_copy_pmcs(to_save, from_save);
+
+	if (kvm_cpu_cap_has(X86_FEATURE_FRED))
+		svm_copy_fred(vmcb_fred_msrs(to_save), vmcb_fred_msrs(from_save));
 }
 
 void svm_copy_vmloadsave_state(struct vmcb *to_vmcb, struct vmcb *from_vmcb)
@@ -1329,8 +1398,13 @@ static int nested_svm_vmexit_update_vmcb12(struct kvm_vcpu *vcpu)
 	if (nested_vmcb12_has_vpmc(vcpu))
 		svm_copy_pmcs(&vmcb12->save, &vmcb02->save);
 
+	/* L2's FRED MSRs as stored by #VMEXIT */
+	if (nested_vmcb12_has_vfred(vcpu))
+		svm_copy_fred(vmcb_fred_msrs(&vmcb12->save), vmcb_fred_msrs(&vmcb02->save));
+
 	vmcb12->control.event_inj	  = 0;
 	vmcb12->control.event_inj_err	  = 0;
+	vmcb12->control.event_inj_data	  = 0;
 	vmcb12->control.int_ctl           = svm->nested.ctl.int_ctl;
 
 	trace_kvm_nested_vmexit_inject(vmcb12->control.exit_code,
@@ -1409,6 +1483,10 @@ void nested_svm_vmexit(struct vcpu_svm *svm)
 		svm_copy_lbrs(&vmcb01->save, &vmcb02->save);
 		vmcb_mark_dirty(vmcb01, VMCB_LBR);
 	}
+
+	/* FRED MSRs shared with L2: what L2 left in them is L1's now */
+	if (guest_cpu_cap_has(vcpu, X86_FEATURE_FRED) && !nested_vmcb12_has_vfred(vcpu))
+		svm_copy_fred(vmcb_fred_msrs(&vmcb01->save), vmcb_fred_msrs(&vmcb02->save));
 
 	svm_update_lbrv(vcpu);
 
@@ -1901,6 +1979,8 @@ static void nested_copy_vmcb_cache_to_control(struct vmcb_control_area *dst,
 	dst->misc_ctl		  = from->misc_ctl;
 	dst->event_inj            = from->event_inj;
 	dst->event_inj_err        = from->event_inj_err;
+	dst->event_inj_data       = from->event_inj_data;
+	dst->exit_int_data        = from->exit_int_data;
 	dst->next_rip             = from->next_rip;
 	dst->nested_cr3		  = from->nested_cr3;
 	dst->misc_ctl2		  = from->misc_ctl2;

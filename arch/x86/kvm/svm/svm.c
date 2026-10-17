@@ -4988,10 +4988,11 @@ static void svm_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu)
 	if (guest_cpuid_is_intel_compatible(vcpu))
 		guest_cpu_cap_clear(vcpu, X86_FEATURE_V_VMSAVE_VMLOAD);
 
+	/* vmcb02 gets V_FRED in nested_vmcb02_prepare_control() */
 	if (guest_cpu_cap_has(vcpu, X86_FEATURE_FRED))
-		svm->vmcb->control.misc_ctl2 |= SVM_MISC2_ENABLE_V_FRED;
+		svm->vmcb01.ptr->control.misc_ctl2 |= SVM_MISC2_ENABLE_V_FRED;
 	else
-		svm->vmcb->control.misc_ctl2 &= ~SVM_MISC2_ENABLE_V_FRED;
+		svm->vmcb01.ptr->control.misc_ctl2 &= ~SVM_MISC2_ENABLE_V_FRED;
 
 	if (is_sev_guest(vcpu))
 		sev_vcpu_after_set_cpuid(svm);
