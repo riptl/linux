@@ -1238,6 +1238,14 @@ static void init_vmcb(struct kvm_vcpu *vcpu, bool init_event)
 	save->idtr.base = 0;
 	save->idtr.limit = 0xffff;
 
+	/* Zeroed on RESET and INIT; the XSTATE MSRs are in kvm_xstate_reset() */
+	if (kvm_cpu_cap_has(X86_FEATURE_SHSTK) || kvm_cpu_cap_has(X86_FEATURE_IBT)) {
+		save->s_cet = 0;
+		save->ssp = 0;
+		save->isst_addr = 0;
+		vmcb_mark_dirty(vmcb, VMCB_CET);
+	}
+
 	if (!init_event) {
 		svm->msr_guest_fred_rsp0 = 0;
 		save->fred_rsp1 = 0;
