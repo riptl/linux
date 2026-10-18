@@ -64,6 +64,7 @@
 #include <asm/microcode.h>
 #include <asm/intel-family.h>
 #include <asm/cpu_device_id.h>
+#include <asm/efi.h>
 #include <asm/fred.h>
 #include <asm/uv/uv.h>
 #include <asm/ia32.h>
@@ -655,10 +656,14 @@ static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 	kernel_ibt = HAS_KERNEL_IBT && cpu_feature_enabled(X86_FEATURE_IBT);
 	user_shstk = cpu_feature_enabled(X86_FEATURE_SHSTK) &&
 		     IS_ENABLED(CONFIG_X86_USER_SHADOW_STACK);
-	/* IDT delivery and the IST entry code cannot use a kernel shadow stack */
+	/*
+	 * IDT delivery and the IST entry code cannot use a kernel shadow stack.
+	 * The EFI mixed mode thunk far-RETs into 32-bit firmware.
+	 */
 	kernel_shstk = IS_ENABLED(CONFIG_X86_KERNEL_SHADOW_STACK) &&
 		       cpu_feature_enabled(X86_FEATURE_SHSTK) &&
 		       cpu_feature_enabled(X86_FEATURE_FRED) &&
+		       !(efi_enabled(EFI_BOOT) && efi_is_mixed()) &&
 		       !test_bit(X86_FEATURE_KERNEL_SHSTK, (unsigned long *)cpu_caps_cleared);
 
 	if (!kernel_ibt && !user_shstk && !kernel_shstk)
