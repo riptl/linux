@@ -137,8 +137,14 @@ static __always_inline void fred_update_ssp0(void)
 		__this_cpu_write(fred_ssp0, ssp0);
 	}
 }
+
+static __always_inline void fred_invalidate_ssp0(void)
+{
+	__this_cpu_write(fred_ssp0, 0);
+}
 #else
 static inline void fred_update_ssp0(void) { }
+static inline void fred_invalidate_ssp0(void) { }
 #endif /* CONFIG_X86_KERNEL_SHADOW_STACK */
 #else /* CONFIG_X86_FRED */
 static __always_inline unsigned long fred_event_data(struct pt_regs *regs) { return 0; }
@@ -149,6 +155,7 @@ static inline void fred_sync_rsp0(unsigned long rsp0) { }
 static inline void fred_update_rsp0(void) { }
 static inline unsigned long this_cpu_fred_rsp(enum fred_stack_level lvl) { return 0; }
 static inline void fred_update_ssp0(void) { }
+static inline void fred_invalidate_ssp0(void) { }
 #endif /* CONFIG_X86_FRED */
 #endif /* !__ASSEMBLER__ */
 

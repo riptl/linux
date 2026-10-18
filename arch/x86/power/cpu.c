@@ -29,6 +29,7 @@
 #include <asm/microcode.h>
 #include <asm/msr.h>
 #include <asm/fred.h>
+#include <asm/shstk_kernel.h>
 
 #ifdef CONFIG_X86_32
 __visible unsigned long saved_context_ebx;
@@ -293,10 +294,27 @@ static void notrace __restore_processor_state(struct saved_context *ctxt)
 	msr_restore_context(ctxt);
 }
 
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+/* For callers of restore_processor_state() that did not go through asm (kexec jump) */
+void kernel_shstk_set_resume_base(unsigned long base)
+{
+	if (kernel_shstk_enabled())
+		saved_context.kernel_ssp = base;
+}
+#endif
+
 /* Needed by apm.c */
 void notrace restore_processor_state(void)
 {
 	__restore_processor_state(&saved_context);
+
+	/*
+	 * Re-enable the kernel shadow stack, off since S3, hibernation or
+	 * kexec jump.  Must be the last call and must not become a tail call.
+	 */
+	kernel_shstk_resume(saved_context.kernel_ssp,
+			    (unsigned long)__builtin_return_address(0));
+	saved_context.kernel_ssp = 0;
 }
 #ifdef CONFIG_X86_32
 EXPORT_SYMBOL(restore_processor_state);

@@ -118,6 +118,8 @@ void kernel_shstk_clear(struct task_struct *tsk);
 int kernel_shstk_alloc(struct task_struct *tsk);
 void kernel_shstk_free(struct task_struct *tsk);
 void kernel_shstk_setup_thread(struct task_struct *p);
+void kernel_shstk_resume(unsigned long base, unsigned long outer_ret);
+void kernel_shstk_set_resume_base(unsigned long base);
 void kernel_shstk_disable_cpu(void);
 void kernel_shstk_report_overflow(struct pt_regs *regs);
 
@@ -141,6 +143,8 @@ static inline void kernel_shstk_clear(struct task_struct *tsk) { }
 static inline int kernel_shstk_alloc(struct task_struct *tsk) { return 0; }
 static inline void kernel_shstk_free(struct task_struct *tsk) { }
 static inline void kernel_shstk_setup_thread(struct task_struct *p) { }
+static inline void kernel_shstk_resume(unsigned long base, unsigned long outer_ret) { }
+static inline void kernel_shstk_set_resume_base(unsigned long base) { }
 static inline void kernel_shstk_disable_cpu(void) { }
 static inline void kernel_shstk_report_overflow(struct pt_regs *regs) { }
 static inline unsigned long *fred_shstk_frame(struct pt_regs *regs) { return NULL; }

@@ -52,6 +52,8 @@ struct saved_context {
 	unsigned long tr;
 	unsigned long safety;
 	unsigned long return_address;
+	/* Shadow stack slot of restore_processor_state()'s return address */
+	unsigned long kernel_ssp;
 	bool misc_enable_saved;
 } __attribute__((packed));
 

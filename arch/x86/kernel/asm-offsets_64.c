@@ -60,6 +60,7 @@ int main(void)
 	ENTRY(cr3);
 	ENTRY(cr4);
 	ENTRY(gdt_desc);
+	ENTRY(kernel_ssp);
 	BLANK();
 #undef ENTRY
 

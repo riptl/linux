@@ -20,6 +20,7 @@
 #include <asm/page.h>
 #include <asm/mtrr.h>
 #include <asm/sections.h>
+#include <asm/shstk_kernel.h>
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
 
@@ -134,6 +135,12 @@ asmlinkage int swsusp_arch_resume(void)
 	error = relocate_restore_code();
 	if (error)
 		return error;
+
+	/*
+	 * The image overwrites this kernel's shadow stacks; the image kernel
+	 * re-enables them in restore_processor_state().
+	 */
+	kernel_shstk_disable_cpu();
 
 	restore_image();
 	return 0;

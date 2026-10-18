@@ -2,9 +2,11 @@
 /*
  * Kernel (supervisor) shadow stacks, FRED only.
  */
+#include <linux/irqflags.h>
 #include <linux/llist.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
+#include <linux/smp.h>
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 
@@ -112,6 +114,75 @@ void kernel_shstk_setup_thread(struct task_struct *p)
 	kshstk_write_alias(top - 8, (unsigned long)ret_from_fork_asm);
 	kshstk_write_alias(top - 16, SHSTK_RSTOR_TOKEN(top - 8));
 	p->thread.kssp = top - 8;
+}
+
+/*
+ * Turn shadow stacks on for this CPU with SSP in the stack below @top.  Every
+ * RET from here on must find a matching entry.  The callers never return, so
+ * the only pending returns are the noinline caller's own and optionally its
+ * caller's:
+ *
+ *	top - 8		outer_ret (if any)
+ *	top - 16	own_ret
+ *	top - 24	restore token
+ */
+static __always_inline void __kernel_shstk_enable(unsigned long top,
+						  unsigned long outer_ret,
+						  unsigned long own_ret)
+{
+	unsigned long ssp = top, flags;
+	u64 msr;
+
+	if (outer_ret) {
+		ssp -= 8;
+		kshstk_write_alias(ssp, outer_ret);
+	}
+	ssp -= 8;
+	kshstk_write_alias(ssp, own_ret);
+	kshstk_write_alias(ssp - 8, SHSTK_RSTOR_TOKEN(ssp));
+
+	local_irq_save(flags);
+
+	/* The boot CPU wrote FRED_CONFIG before the feature was known */
+	rdmsrq(MSR_IA32_FRED_CONFIG, msr);
+	wrmsrq(MSR_IA32_FRED_CONFIG, msr | FRED_CONFIG_SHSTK_REDZONE);
+
+	rdmsrq(MSR_IA32_S_CET, msr);
+	msr |= CET_SHSTK_EN | CET_WRSS_EN;
+
+	/*
+	 * One asm statement, so the compiler cannot place a CALL while SSP is
+	 * 0.  INCSSP skips the previous-SSP token RSTORSSP leaves behind.
+	 */
+	asm volatile("wrmsr\n\t"
+		     "rstorssp %[token]\n\t"
+		     "incsspq %[one]"
+		     : [token] "+m" (*(unsigned long *)(ssp - 8))
+		     : "c" (MSR_IA32_S_CET), "a" ((u32)msr), "d" ((u32)(msr >> 32)),
+		       [one] "r" (1UL)
+		     : "memory");
+
+	fred_invalidate_ssp0();
+
+	local_irq_restore(flags);
+}
+
+/*
+ * Re-enable after suspend, hibernation or kexec jump.  @base is the slot for
+ * the caller's return address, recorded on the way down.
+ */
+noinline void kernel_shstk_resume(unsigned long base, unsigned long outer_ret)
+{
+	/* Still on after a failed suspend or hibernation image creation */
+	if (!kernel_shstk_enabled() || rdssp())
+		return;
+
+	if (!base)
+		panic("kernel shadow stack: no resume base recorded for CPU %d\n",
+		      smp_processor_id());
+
+	__kernel_shstk_enable(base + 8, outer_ret,
+			      (unsigned long)__builtin_return_address(0));
 }
 
 void kernel_shstk_disable_cpu(void)

@@ -22,6 +22,17 @@
 #include <asm/processor-flags.h>
 #include <asm/frame.h>
 #include <asm/nospec-branch.h>
+#include <asm/msr-index.h>
+
+/*
+ * Clear SH_STK_EN/WRSS_EN before CR4.CET is set with whatever SSP the boot
+ * kernel left behind.  Clobbers %eax, %ecx, %edx.
+ */
+.macro CLEAR_S_CET_SHSTK
+	ALTERNATIVE "", \
+		    __stringify(movl $MSR_IA32_S_CET, %ecx; rdmsr; andl $~(CET_SHSTK_EN | CET_WRSS_EN), %eax; wrmsr), \
+		    X86_FEATURE_SHSTK
+.endm
 
 	 /* code below belongs to the image kernel */
 	.align PAGE_SIZE
@@ -29,6 +40,8 @@ SYM_FUNC_START(restore_registers)
 	ENDBR
 	/* go back to the original page tables */
 	movq    %r9, %cr3
+
+	CLEAR_S_CET_SHSTK
 
 	/* Flush TLB, including "global" things (vmalloc) */
 	movq	mmu_cr4_features(%rip), %rax
@@ -89,6 +102,18 @@ SYM_FUNC_START(swsusp_arch_suspend)
 	movq	%r15, pt_regs_r15(%rax)
 	pushfq
 	popq	pt_regs_flags(%rax)
+
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	/*
+	 * SSP points at the slot of the return address into create_image().
+	 * restore_registers() returns there with shadow stacks off, and
+	 * create_image() then CALLs restore_processor_state(), whose return
+	 * address lands in that same slot.
+	 */
+	ALTERNATIVE "", \
+		    __stringify(rdsspq %rcx; movq %rcx, saved_context_kernel_ssp(%rax)), \
+		    X86_FEATURE_KERNEL_SHSTK
+#endif
 
 	/* save cr3 */
 	movq	%cr3, %rax

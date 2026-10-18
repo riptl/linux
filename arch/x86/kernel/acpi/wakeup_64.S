@@ -71,6 +71,15 @@ SYM_FUNC_START(do_suspend_lowlevel)
 	pushfq
 	popq	pt_regs_flags(%rax)
 
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	/*
+	 * .Lresume_point tail-jumps to restore_processor_state(), which
+	 * returns to our caller: that slot is at the current SSP.
+	 */
+	ALTERNATIVE "", __stringify(rdsspq %rcx; movq %rcx, saved_context_kernel_ssp(%rax)), \
+		    X86_FEATURE_KERNEL_SHSTK
+#endif
+
 	movq	$.Lresume_point, saved_rip(%rip)
 
 	movq	%rsp, saved_rsp(%rip)
@@ -89,6 +98,10 @@ SYM_FUNC_START(do_suspend_lowlevel)
 	.align 4
 .Lresume_point:
 	ANNOTATE_NOENDBR
+	/* Clear SH_STK_EN before CR4.CET goes back on; kernel_shstk_resume() re-enables */
+	ALTERNATIVE "", \
+		    __stringify(movl $MSR_IA32_S_CET, %ecx; rdmsr; andl $~(CET_SHSTK_EN | CET_WRSS_EN), %eax; wrmsr), \
+		    X86_FEATURE_SHSTK
 	/* We don't restore %rax, it must be 0 anyway */
 	movq	$saved_context, %rax
 	movq	saved_context_cr4(%rax), %rbx

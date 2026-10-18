@@ -27,6 +27,7 @@
 #include <asm/kexec-bzimage64.h>
 #include <asm/setup.h>
 #include <asm/set_memory.h>
+#include <asm/shstk_kernel.h>
 #include <asm/cpu.h>
 #include <asm/efi.h>
 #include <asm/processor.h>
@@ -399,6 +400,16 @@ void __nocfi machine_kexec(struct kimage *image)
 	/* Interrupts aren't acceptable while we reboot */
 	local_irq_disable();
 	hw_breakpoint_disable();
+
+	/*
+	 * restore_processor_state() is called from this frame on a kexec
+	 * jump, so its return address slot is the one below the current SSP.
+	 */
+#ifdef CONFIG_KEXEC_JUMP
+	if (image->preserve_context)
+		kernel_shstk_set_resume_base(rdssp() - 8);
+#endif
+
 	cet_disable();
 
 	if (image->preserve_context) {
