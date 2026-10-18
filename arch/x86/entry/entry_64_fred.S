@@ -138,6 +138,39 @@ SYM_FUNC_START(asm_fred_entry_from_kvm)
 	PUSH_AND_CLEAR_REGS clear_callee=0 unwind_hint=0
 
 	movq %rsp, %rdi				/* %rdi -> pt_regs */
+
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	/*
+	 * Synthesize the shadow stack frame (SSP, LIP, CS) ERETS checks: push
+	 * three slots with CALLs, drop their regular stack copies and fill the
+	 * slots.  The INT3s keep the CALL displacements nonzero; a CALL to the
+	 * next instruction pushes no shadow stack entry.
+	 */
+	ALTERNATIVE "jmp .Lshstk_frame_done", "", X86_FEATURE_KERNEL_SHSTK
+	xorl %eax, %eax
+	rdsspq %rax				/* SSP of the return state */
+	testq %rax, %rax
+	jz .Lshstk_frame_done			/* Shadow stacks off on this CPU */
+	ANNOTATE_INTRA_FUNCTION_CALL
+	call 2f
+	int3
+2:	ANNOTATE_INTRA_FUNCTION_CALL
+	call 3f
+	int3
+3:	ANNOTATE_INTRA_FUNCTION_CALL
+	call 4f
+	int3
+4:	addq $3*8, %rsp
+	rdsspq %rcx				/* -> the new frame */
+	wrssq %rax, (%rcx)			/* SSP */
+	lea 1f(%rip), %rax
+	wrssq %rax, 8(%rcx)			/* LIP */
+	movq $__KERNEL_CS, %rax
+	wrssq %rax, 16(%rcx)			/* Augmented CS, as pushed above */
+	movq %rcx, FRED_FRAME_resv(%rsp)
+.Lshstk_frame_done:
+#endif
+
 	/*
 	 * At this point: {rdi, rsi, rdx, rcx, r8, r9}, {r10, r11}, {rax, rdx}
 	 * are clobbered, which corresponds to: arguments, extra caller-saved
