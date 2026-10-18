@@ -666,6 +666,22 @@ static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 
 	if (user_shstk)
 		set_cpu_cap(c, X86_FEATURE_USER_SHSTK);
+	/*
+	 * INT3 CALL emulation needs FRED_CONFIG_SHSTK_REDZONE.  Probe it on the
+	 * boot CPU while falling back is still possible.
+	 */
+	if (kernel_shstk && c == &boot_cpu_data) {
+		u64 config;
+
+		rdmsrq(MSR_IA32_FRED_CONFIG, config);
+		if (wrmsrq_safe(MSR_IA32_FRED_CONFIG, config | FRED_CONFIG_SHSTK_REDZONE)) {
+			pr_warn("FRED: shadow stack redzone rejected, kernel shadow stacks disabled\n");
+			kernel_shstk = false;
+		} else {
+			wrmsrq(MSR_IA32_FRED_CONFIG, config);
+		}
+	}
+
 	if (kernel_shstk)
 		set_cpu_cap(c, X86_FEATURE_KERNEL_SHSTK);
 

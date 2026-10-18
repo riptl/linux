@@ -30,6 +30,8 @@
  */
 #define FRED_CONFIG_REDZONE_AMOUNT	1
 #define FRED_CONFIG_REDZONE		(_AT(unsigned long, FRED_CONFIG_REDZONE_AMOUNT) << 6)
+/* Same for the shadow stack: one free slot below the interrupted SSP */
+#define FRED_CONFIG_SHSTK_REDZONE	_AT(unsigned long, 1 << 3)
 #define FRED_CONFIG_INT_STKLVL(l)	(_AT(unsigned long, l) << 9)
 #define FRED_CONFIG_ENTRYPOINT(p)	_AT(unsigned long, (p))
 

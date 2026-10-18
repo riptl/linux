@@ -12,6 +12,7 @@
 #include <asm/processor.h>
 #include <asm/shstk_kernel.h>
 #include <asm/switch_to.h>
+#include <asm/text-patching.h>
 
 /* Cache of IA32_PL0_SSP, see fred_update_ssp0() */
 DEFINE_PER_CPU(unsigned long, fred_ssp0);
@@ -160,4 +161,36 @@ noinstr void __fred_shstk_sync_frame(struct pt_regs *regs)
 		wrss64(regs->ip, &frame[1]);
 	if (unlikely(frame[2] != regs->csx))
 		wrss64(regs->csx, &frame[2]);
+}
+
+/*
+ * Emulated CALL: FRED_CONFIG_SHSTK_REDZONE left a free slot below the
+ * interrupted SSP.  Fill it and have ERETS restore SSP pointing at it.
+ */
+noinstr void fred_shstk_emulate_call(struct pt_regs *regs, unsigned long ret_ip)
+{
+	unsigned long *frame = fred_shstk_frame(regs);
+
+	if (!frame)
+		return;
+
+	wrss64(ret_ip, (unsigned long *)(frame[0] - 8));
+	wrss64(frame[0] - 8, &frame[0]);
+}
+
+/* Emulated RET: check the entry like RET would, have ERETS restore SSP + 8 */
+noinstr void fred_shstk_emulate_ret(struct pt_regs *regs, unsigned long ret_ip)
+{
+	unsigned long *frame = fred_shstk_frame(regs);
+
+	if (!frame)
+		return;
+
+	if (unlikely(*(unsigned long *)frame[0] != ret_ip)) {
+		instrumentation_begin();
+		BUG();
+		instrumentation_end();
+	}
+
+	wrss64(frame[0] + 8, &frame[0]);
 }

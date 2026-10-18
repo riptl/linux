@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/kernel.h>
 #include <linux/kvm_types.h>
+#include <linux/smp.h>
 
 #include <asm/desc.h>
 #include <asm/fred.h>
 #include <asm/msr.h>
+#include <asm/shstk_kernel.h>
 #include <asm/tlbflush.h>
 #include <asm/traps.h>
 
@@ -42,11 +44,17 @@ void cpu_init_fred_exceptions(void)
 	 */
 	loadsegment(ss, __KERNEL_DS);
 
-	wrmsrq(MSR_IA32_FRED_CONFIG,
-	       /* Reserve for CALL emulation */
-	       FRED_CONFIG_REDZONE |
-	       FRED_CONFIG_INT_STKLVL(0) |
-	       FRED_CONFIG_ENTRYPOINT(asm_fred_entrypoint_user));
+	u64 config = FRED_CONFIG_REDZONE |	/* Reserve for CALL emulation */
+		     FRED_CONFIG_INT_STKLVL(0) |
+		     FRED_CONFIG_ENTRYPOINT(asm_fred_entrypoint_user);
+
+	wrmsrq(MSR_IA32_FRED_CONFIG, config);
+
+	/* Same on the shadow stack; setup_cet() probed it on the boot CPU */
+	if (kernel_shstk_enabled() &&
+	    wrmsrq_safe(MSR_IA32_FRED_CONFIG, config | FRED_CONFIG_SHSTK_REDZONE))
+		panic("FRED: CPU %d rejects the shadow stack redzone\n",
+		      smp_processor_id());
 
 	wrmsrq(MSR_IA32_FRED_STKLVLS, 0);
 

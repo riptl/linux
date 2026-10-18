@@ -163,10 +163,23 @@ unsigned long int3_emulate_pop(struct pt_regs *regs)
 	return val;
 }
 
+/* Kernel shadow stack hooks, see arch/x86/kernel/shstk_kernel.c */
+void fred_shstk_emulate_call(struct pt_regs *regs, unsigned long ret_ip);
+void fred_shstk_emulate_ret(struct pt_regs *regs, unsigned long ret_ip);
+
+/* Push the return address of an emulated CALL on both stacks */
+static __always_inline
+void int3_emulate_push_ret(struct pt_regs *regs, unsigned long ret_ip)
+{
+	int3_emulate_push(regs, ret_ip);
+	if (IS_ENABLED(CONFIG_X86_KERNEL_SHADOW_STACK))
+		fred_shstk_emulate_call(regs, ret_ip);
+}
+
 static __always_inline
 void int3_emulate_call(struct pt_regs *regs, unsigned long ip, unsigned long func)
 {
-	int3_emulate_push(regs, ip);
+	int3_emulate_push_ret(regs, ip);
 	int3_emulate_jmp(regs, func);
 }
 
@@ -174,6 +187,10 @@ static __always_inline
 void int3_emulate_ret(struct pt_regs *regs)
 {
 	unsigned long ip = int3_emulate_pop(regs);
+
+	/* A real RET pops both stacks */
+	if (IS_ENABLED(CONFIG_X86_KERNEL_SHADOW_STACK))
+		fred_shstk_emulate_ret(regs, ip);
 	int3_emulate_jmp(regs, ip);
 }
 
