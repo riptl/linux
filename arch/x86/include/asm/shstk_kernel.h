@@ -10,10 +10,67 @@
 /* Restore token for RSTORSSP: the SSP above the token slot, bit 0 = 64-bit */
 #define SHSTK_RSTOR_TOKEN(ssp)		((ssp) | 1UL)
 
-#ifndef __ASSEMBLER__
+#ifdef __ASSEMBLER__
 
+#include <asm/alternative.h>
+
+/*
+ * For a RET to an address stored at (%rsp) over the slot of an RSB balancing
+ * CALL (ftrace): write the address into the shadow stack slot that CALL
+ * pushed.  Preserves all registers and flags.  A jump-over alternative, as
+ * objtool needs the same stack layout in both variants.
+ */
+.macro SHSTK_WRITE_RET_TOP
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	ALTERNATIVE "jmp .Lshstk_write_done_\@", "", X86_FEATURE_KERNEL_SHSTK
+	pushq	%rax
+	pushq	%rcx
+	movq	16(%rsp), %rcx
+	xorl	%eax, %eax
+	rdsspq	%rax
+	testq	%rax, %rax
+	jz	.Lshstk_write_pop_\@
+	wrssq	%rcx, (%rax)
+.Lshstk_write_pop_\@:
+	popq	%rcx
+	popq	%rax
+.Lshstk_write_done_\@:
+#endif
+.endm
+
+#else /* !__ASSEMBLER__ */
+
+#include <linux/objtool.h>
 #include <linux/types.h>
+#include <asm/alternative.h>
 #include <asm/cpufeature.h>
+
+/*
+ * For rethook's top level asm(): push a shadow stack slot with a CALL, then
+ * do SHSTK_WRITE_RET_TOP.  The INT3 keeps the CALL displacement nonzero; a
+ * CALL to the next instruction pushes no shadow stack entry.
+ */
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+#define SHSTK_SYNC_RET_TOP_STR						\
+	ALTERNATIVE("jmp 8893f", "", X86_FEATURE_KERNEL_SHSTK) "\n\t"	\
+	ANNOTATE_INTRA_FUNCTION_CALL "\n\t"				\
+	"call 8891f\n\t"						\
+	"int3\n\t"							\
+	"8891: lea 8(%rsp), %rsp\n\t"					\
+	"pushq %rax\n\t"						\
+	"pushq %rcx\n\t"						\
+	"movq 16(%rsp), %rcx\n\t"					\
+	"xorl %eax, %eax\n\t"						\
+	"rdsspq %rax\n\t"						\
+	"testq %rax, %rax\n\t"						\
+	"jz 8892f\n\t"							\
+	"wrssq %rcx, (%rax)\n\t"					\
+	"8892: popq %rcx\n\t"						\
+	"popq %rax\n"							\
+	"8893:\n"
+#else
+#define SHSTK_SYNC_RET_TOP_STR
+#endif
 
 struct pt_regs;
 struct task_struct;
@@ -65,6 +122,8 @@ void kernel_shstk_report_overflow(struct pt_regs *regs);
 
 unsigned long *fred_shstk_frame(struct pt_regs *regs);
 void __fred_shstk_sync_frame(struct pt_regs *regs);
+void fred_shstk_replace_ret(struct pt_regs *regs, unsigned long ret_ip);
+DECLARE_PER_CPU(unsigned long, kprobe_shstk_ret_slot);
 
 /* ERETS checks regs->ip and regs->csx against the shadow stack frame */
 static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs)
@@ -84,6 +143,7 @@ static inline void kernel_shstk_setup_thread(struct task_struct *p) { }
 static inline void kernel_shstk_report_overflow(struct pt_regs *regs) { }
 static inline unsigned long *fred_shstk_frame(struct pt_regs *regs) { return NULL; }
 static __always_inline void fred_shstk_sync_frame(struct pt_regs *regs) { }
+static inline void fred_shstk_replace_ret(struct pt_regs *regs, unsigned long ret_ip) { }
 
 #endif /* CONFIG_X86_KERNEL_SHADOW_STACK */
 

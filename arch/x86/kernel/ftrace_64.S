@@ -10,6 +10,7 @@
 #include <asm/ptrace.h>
 #include <asm/ftrace.h>
 #include <asm/nospec-branch.h>
+#include <asm/shstk_kernel.h>
 #include <asm/unwind_hints.h>
 #include <asm/frame.h>
 
@@ -114,6 +115,31 @@
 	subq $MCOUNT_INSN_SIZE, %rdi
 	.endm
 
+/*
+ * The shadow stack holds [parent return][fentry return] with SSP at the
+ * latter.  Mirror what the handlers did to either on the regular stack.
+ * %rax and %rcx are restored afterwards by restore_mcount_regs.
+ */
+.macro FTRACE_SHSTK_SYNC added=0
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+	ALTERNATIVE "jmp .Lshstk_sync_done_\@", "", X86_FEATURE_KERNEL_SHSTK
+	xorl %eax, %eax
+	rdsspq %rax
+	testq %rax, %rax
+	jz .Lshstk_sync_done_\@
+	movq MCOUNT_REG_SIZE+\added(%rsp), %rcx
+	cmpq %rcx, (%rax)
+	je .Lshstk_sync_parent_\@
+	wrssq %rcx, (%rax)
+.Lshstk_sync_parent_\@:
+	movq MCOUNT_REG_SIZE+8+\added(%rsp), %rcx
+	cmpq %rcx, 8(%rax)
+	je .Lshstk_sync_done_\@
+	wrssq %rcx, 8(%rax)
+.Lshstk_sync_done_\@:
+#endif
+.endm
+
 .macro restore_mcount_regs save=0
 
 	/* ftrace_regs_caller or frame pointers require this */
@@ -185,6 +211,8 @@ SYM_INNER_LABEL(ftrace_call, SYM_L_GLOBAL)
 	movq RIP(%rsp), %rax
 	movq %rax, MCOUNT_REG_SIZE(%rsp)
 
+	FTRACE_SHSTK_SYNC
+
 	restore_mcount_regs
 
 	/*
@@ -254,6 +282,8 @@ SYM_INNER_LABEL(ftrace_regs_call, SYM_L_GLOBAL)
 	movq RIP(%rsp), %rax
 	movq %rax, MCOUNT_REG_SIZE+8(%rsp)
 
+	FTRACE_SHSTK_SYNC added=8
+
 	/* restore the rest of pt_regs */
 	movq R15(%rsp), %r15
 	movq R14(%rsp), %r14
@@ -290,6 +320,8 @@ SYM_INNER_LABEL(ftrace_regs_caller_end, SYM_L_GLOBAL)
 	jz	2f
 	andq $0xfffffffffffffffe, %rax
 	movq %rax, MCOUNT_REG_SIZE+8(%rsp)
+	/* The RET below returns into the direct trampoline */
+	FTRACE_SHSTK_SYNC added=8
 	restore_mcount_regs
 	/* Restore flags */
 	popfq
@@ -315,6 +347,8 @@ SYM_INNER_LABEL(ftrace_regs_caller_end, SYM_L_GLOBAL)
 	int3
 .Ldo_rebalance:
 	add $8, %rsp
+	/* Make the slot pushed by the CALL above match (%rsp) */
+	SHSTK_WRITE_RET_TOP
 	ALTERNATIVE __stringify(RET), \
 		    __stringify(ANNOTATE_UNRET_SAFE; ret; int3), \
 		    X86_FEATURE_CALL_DEPTH
@@ -398,6 +432,8 @@ SYM_CODE_START(return_to_handler)
 	int3
 .Ldo_rop:
 	mov %rdi, (%rsp)
+	/* Make the slot pushed by the CALL above hold the original return address */
+	SHSTK_WRITE_RET_TOP
 	ALTERNATIVE __stringify(RET), \
 		    __stringify(ANNOTATE_UNRET_SAFE; ret; int3), \
 		    X86_FEATURE_CALL_DEPTH

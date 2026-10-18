@@ -26,6 +26,7 @@
 #include <asm/desc.h>
 #include <linux/uaccess.h>
 #include <asm/alternative.h>
+#include <asm/shstk_kernel.h>
 #include <asm/insn.h>
 #include <asm/debugreg.h>
 #include <asm/set_memory.h>
@@ -193,7 +194,21 @@ optimized_callback(struct optimized_kprobe *op, struct pt_regs *regs)
 
 		__this_cpu_write(current_kprobe, &op->kp);
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+		/*
+		 * @regs has no FRED frame.  The detour JMPs in and CALLs here,
+		 * so the probed function's return address is one slot up.
+		 */
+		if (kernel_shstk_enabled()) {
+			unsigned long ssp = rdssp();
+
+			__this_cpu_write(kprobe_shstk_ret_slot, ssp ? ssp + 8 : 0);
+		}
+#endif
 		opt_pre_handler(&op->kp, regs);
+#ifdef CONFIG_X86_KERNEL_SHADOW_STACK
+		__this_cpu_write(kprobe_shstk_ret_slot, 0);
+#endif
 		__this_cpu_write(current_kprobe, NULL);
 	}
 	preempt_enable();

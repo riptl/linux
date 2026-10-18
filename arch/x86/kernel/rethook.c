@@ -7,6 +7,8 @@
 #include <linux/kprobes.h>
 #include <linux/objtool.h>
 
+#include <asm/shstk_kernel.h>
+
 #include "kprobes/common.h"
 
 __visible void arch_rethook_trampoline_callback(struct pt_regs *regs);
@@ -40,6 +42,8 @@ asm(
 	/* In the callback function, 'regs->flags' is copied to 'regs->ss'. */
 	"	addq $16, %rsp\n"
 	"	popfq\n"
+	/* Put the real return address on the shadow stack before RET */
+	SHSTK_SYNC_RET_TOP_STR
 #else
 	/* Push a fake return address to tell the unwinder it's a rethook. */
 	"	pushl $arch_rethook_trampoline\n"
@@ -123,5 +127,9 @@ void arch_rethook_prepare(struct rethook_node *rh, struct pt_regs *regs, bool mc
 
 	/* Replace the return addr with trampoline addr */
 	stack[0] = (unsigned long) arch_rethook_trampoline;
+
+	/* ... and on the shadow stack; ftrace based probes do it in the trampoline */
+	if (!mcount)
+		fred_shstk_replace_ret(regs, (unsigned long)arch_rethook_trampoline);
 }
 NOKPROBE_SYMBOL(arch_rethook_prepare);

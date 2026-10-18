@@ -33,6 +33,7 @@
 #include <asm/ftrace.h>
 #include <asm/nops.h>
 #include <asm/text-patching.h>
+#include <asm/alternative.h>
 
 #ifdef CONFIG_DYNAMIC_FTRACE
 
@@ -352,6 +353,12 @@ create_trampoline(struct ftrace_ops *ops, unsigned int *tramp_size)
 
 	*tramp_size = size + RET_SIZE + sizeof(void *);
 	npages = DIV_ROUND_UP(*tramp_size, PAGE_SIZE);
+
+	/* Copy the shadow stack alternatives only once they are patched */
+	if (!alternatives_patched) {
+		tramp_free(trampoline);
+		return 0;
+	}
 
 	/* Copy ftrace_caller onto the trampoline memory */
 	ret = copy_from_kernel_nofault(trampoline, (void *)start_offset, size);

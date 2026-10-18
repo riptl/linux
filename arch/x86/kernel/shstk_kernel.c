@@ -194,3 +194,28 @@ noinstr void fred_shstk_emulate_ret(struct pt_regs *regs, unsigned long ret_ip)
 
 	wrss64(frame[0] + 8, &frame[0]);
 }
+
+/*
+ * kretprobe: replace the return address on top of the interrupted shadow
+ * stack.  A jump-optimized kprobe has no FRED frame; optimized_callback()
+ * records the slot in kprobe_shstk_ret_slot instead.
+ */
+noinstr void fred_shstk_replace_ret(struct pt_regs *regs, unsigned long ret_ip)
+{
+	unsigned long *slot = (unsigned long *)__this_cpu_read(kprobe_shstk_ret_slot);
+	unsigned long *frame;
+
+	if (!kernel_shstk_enabled())
+		return;
+
+	if (!slot) {
+		frame = fred_shstk_frame(regs);
+		if (!frame)
+			return;
+		slot = (unsigned long *)frame[0];
+	}
+
+	wrss64(ret_ip, slot);
+}
+
+DEFINE_PER_CPU(unsigned long, kprobe_shstk_ret_slot);
