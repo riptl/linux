@@ -86,6 +86,7 @@
 #include <asm/intel-family.h>
 #include <asm/cpu_device_id.h>
 #include <asm/spec-ctrl.h>
+#include <asm/shstk_kernel.h>
 #include <asm/hw_irq.h>
 #include <asm/stackprotector.h>
 #include <asm/sev.h>
@@ -1412,6 +1413,9 @@ void play_dead_common(void)
 	cpuhp_ap_report_dead();
 
 	local_irq_disable();
+
+	/* See stop_this_cpu() */
+	kernel_shstk_disable_cpu();
 }
 
 /*

@@ -858,6 +858,9 @@ void __noreturn stop_this_cpu(void *dummy)
 	 */
 	cpumask_clear_cpu(cpu, &cpus_stop_mask);
 
+	/* For a kexec'ed kernel that sets CR4.CET before IA32_S_CET */
+	kernel_shstk_disable_cpu();
+
 #ifdef CONFIG_SMP
 	if (smp_ops.stop_this_cpu) {
 		smp_ops.stop_this_cpu();

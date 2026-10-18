@@ -23,6 +23,7 @@
 #include <asm/proto.h>
 #include <asm/reboot_fixups.h>
 #include <asm/reboot.h>
+#include <asm/shstk_kernel.h>
 #include <asm/pci_x86.h>
 #include <asm/cpu.h>
 #include <asm/nmi.h>
@@ -833,6 +834,9 @@ static int crash_nmi_callback(unsigned int val, struct pt_regs *regs)
 	 * prevent AP bringup, e.g. in a kdump kernel or in firmware.
 	 */
 	x86_virt_emergency_disable_virtualization_cpu();
+
+	/* See stop_this_cpu() */
+	kernel_shstk_disable_cpu();
 
 	atomic_dec(&waiting_for_crash_ipi);
 

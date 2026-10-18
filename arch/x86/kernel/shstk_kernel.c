@@ -9,6 +9,7 @@
 #include <linux/workqueue.h>
 
 #include <asm/fred.h>
+#include <asm/msr.h>
 #include <asm/processor.h>
 #include <asm/shstk_kernel.h>
 #include <asm/switch_to.h>
@@ -111,6 +112,17 @@ void kernel_shstk_setup_thread(struct task_struct *p)
 	kshstk_write_alias(top - 8, (unsigned long)ret_from_fork_asm);
 	kshstk_write_alias(top - 16, SHSTK_RSTOR_TOKEN(top - 8));
 	p->thread.kssp = top - 8;
+}
+
+void kernel_shstk_disable_cpu(void)
+{
+	u64 msr;
+
+	if (!kernel_shstk_enabled())
+		return;
+
+	rdmsrq(MSR_IA32_S_CET, msr);
+	wrmsrq(MSR_IA32_S_CET, msr & ~(CET_SHSTK_EN | CET_WRSS_EN));
 }
 
 /*
